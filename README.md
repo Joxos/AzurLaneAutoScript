@@ -43,6 +43,25 @@ GUI development, thanks **[@18870](https://github.com/18870)** , say HURRAY.
 
 
 
+## 快速开始 Quick Start (2026 stack)
+
+```bash
+# 安装 uv (一次性)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 同步依赖 (Python 3.12 + 全栈 OCR/UI/通知)
+uv sync --extra lint
+
+# 启动 GUI
+uv run gui.py
+# 或者启动无头模式
+uv run alas.py
+```
+
+技术栈: Python 3.12 + uv + ruff + RapidOCR (onnxruntime) + Pydantic v2 +
+starlette/uvicorn + Electron/Vue 桌面端。`module/ocr/` 完全在进程内运行,
+不再需要 zerorpc / gevent 单独进程。
+
 ## 安装 Installation [![](https://img.shields.io/github/downloads/LmeSzinc/AzurLaneAutoScript/total?color=4e4c97)](https://github.com/LmeSzinc/AzurLaneAutoScript/releases)
 
 [中文安装教程](https://github.com/LmeSzinc/AzurLaneAutoScript/wiki/Installation_cn)，包含自动安装教程，使用教程，手动安装教程，远程控制教程。

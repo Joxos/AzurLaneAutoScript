@@ -1,0 +1,165 @@
+[project]
+name = "azurlaneautoscript"
+version = "0.2.0"
+description = "Azur Lane bot with GUI (CN/EN/JP/TW), 24/7 unattended farming"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "GPL-3.0" }
+authors = [
+    { name = "LmeSzinc", url = "https://github.com/LmeSzinc/AzurLaneAutoScript" },
+]
+keywords = ["azur-lane", "game-bot", "android", "uiautomator", "ocr"]
+
+# Runtime dependencies. Kept intentionally small: anything that can be
+# installed on a vanilla Python 3.12 without compiling C extensions is a
+# win for contributors. The legacy mxnet/cnocr/zerorpc/gevent stack was
+# removed in 2026 - OCR now runs in-process via RapidOCR (onnxruntime).
+dependencies = [
+    # Image processing
+    "numpy>=1.26,<3.0",
+    "scipy>=1.10",
+    "Pillow>=10.0",
+    "opencv-python>=4.10",
+    "imageio>=2.30",
+    # Device connection (Android automation)
+    "adbutils>=2.0",
+    "uiautomator2>=3.0",
+    "uiautomator2cache>=0.3",
+    "wrapt>=1.15",
+    "retrying>=1.3",
+    "av>=11.0",
+    "psutil>=5.9",
+    "lz4>=4.0",
+    # Utils
+    "rich>=13.0",
+    "tqdm>=4.60",
+    "jellyfish>=0.11",
+    "PyYAML>=6.0",
+    "inflection>=0.5",
+    "pydantic>=2.5",
+    "pydantic-settings>=2.1",
+    "aiofiles>=23.0",
+    "prettytable>=3.0",
+    "anyio>=4.0",
+    # Pushing notifications / Discord rich presence
+    "onepush>=1.5",
+    "pycryptodome>=3.10",
+    "pypresence>=4.2",
+    # OCR - RapidOCR ships onnxruntime + PaddleOCR-v4/v6 multilingual model
+    "rapidocr>=3.0",
+    "onnxruntime>=1.17",
+    # WebUI
+    "pywebio>=1.8",
+    "starlette>=0.30",
+    "uvicorn[standard]>=0.25",
+    "alas-webapp>=0.3.7",
+    "pyzmq>=25.0",
+]
+
+[project.optional-dependencies]
+# Headless / Docker image extras - used by deploy/headless/requirements_generator.py
+headless = [
+    "Pillow>=10.0",
+    "numpy>=1.26",
+    "opencv-python-headless>=4.10",
+]
+# Linting (dev-only)
+lint = [
+    "ruff>=0.5",
+]
+# Testing (placeholder, see tests/ if added later)
+test = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+alas = "alas:main"
+alas-server = "gui:main"
+
+[project.urls]
+Homepage = "https://github.com/LmeSzinc/AzurLaneAutoScript"
+Wiki = "https://github.com/LmeSzinc/AzurLaneAutoScript/wiki"
+Issues = "https://github.com/LmeSzinc/AzurLaneAutoScript/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["module", "submodule", "campaign"]
+include = [
+    "module/**/*.py",
+    "submodule/**/*.py",
+    "campaign/**/*.py",
+]
+
+# ---------------------------------------------------------------------------
+# Tooling
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+# Match the original project's line length (PEP 8 + Alas's preference).
+line-length = 120
+target-version = "py312"
+extend-exclude = [
+    ".venv",
+    "build",
+    "dist",
+    "campaign/*/assets",  # generated game assets
+    "bin",
+    "log",
+    "toolkit/utils",
+    "module/webui/lang.py",  # generated translations
+    "module/config/config_generated.py",  # generated config
+    "config",
+]
+
+[tool.ruff.lint]
+# Conservative default set; the legacy codebase has 4 years of stylistic
+# debt we do not want to surface all at once. Re-enable rules in
+# follow-up PRs.
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "W",      # pycodestyle warnings
+    "I",      # isort (imports)
+    "UP",     # pyupgrade (3.12 idioms)
+    "B",      # bugbear (common bugs)
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (project uses 120, ruff may not match)
+    "B008",   # function call in default argument - too noisy in legacy code
+    "SIM108", # use ternary operator - stylistic
+    "SIM117", # combined with-statements - too noisy
+    "UP007",  # use X | Y for unions - too much churn for now
+]
+# Allow ruff to fix E/W/F/I/UP automatically.
+fixable = ["E", "W", "F", "I", "UP", "B", "C4", "SIM"]
+unfixable = ["B"]
+
+[tool.ruff.lint.per-file-ignores]
+# __init__.py and generated files have relaxed rules.
+"__init__.py" = ["F401", "F403"]
+"module/config/config_generated.py" = ["E", "W", "F", "I", "UP", "B"]
+"module/webui/lang.py" = ["E", "W", "F", "I", "UP", "B"]
+"deploy/**" = ["B", "E", "F", "W"]  # deploy scripts are throwaway tooling
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.ruff.lint.isort]
+known-first-party = ["module", "submodule", "campaign", "deploy"]
+
+# ---------------------------------------------------------------------------
+# uv
+# ---------------------------------------------------------------------------
+
+[tool.uv]
+# Faster resolver on a multi-resolution lock.
+resolution = "highest"
+# Allow pre-release for scientific packages that lag.
+prerelease = "if-necessary"

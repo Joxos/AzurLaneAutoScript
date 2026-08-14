@@ -53,7 +53,6 @@ from module.config.utils import (
     read_file,
 )
 from module.logger import logger
-from module.ocr.rpc import start_ocr_server_process, stop_ocr_server_process
 from module.submodule.submodule import load_config
 from module.submodule.utils import get_config_mod
 from module.webui.base import Frame
@@ -1447,8 +1446,11 @@ def startup():
     task_handler.start()
     if State.deploy_config.DiscordRichPresence:
         init_discord_rpc()
+    # Zerorpc-based OCR server was removed in the 2026 stack refresh; the
+    # StartOcrServer setting is preserved for backward compatibility.
     if State.deploy_config.StartOcrServer:
-        start_ocr_server_process(State.deploy_config.OcrServerPort)
+        from module.logger import logger
+        logger.warning('StartOcrServer is no longer supported; OCR runs in-process')
     if (
             State.deploy_config.EnableRemoteAccess
             and State.deploy_config.Password is not None
@@ -1464,7 +1466,7 @@ def clearup():
     logger.info("Start clearup")
     RemoteAccess.kill_ssh_process()
     close_discord_rpc()
-    stop_ocr_server_process()
+    # stop_ocr_server_process() removed: zerorpc OCR server is gone.
     for alas in ProcessManager._processes.values():
         alas.stop()
     State.clearup()

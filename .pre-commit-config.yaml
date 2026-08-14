@@ -1,0 +1,18 @@
+# Pre-commit hooks for AzurLaneAutoScript
+#
+# Install once after cloning:
+#   uv run pre-commit install
+#
+# Run manually against all files:
+#   uv run pre-commit run --all-files
+#
+# We only enforce ruff lint+format on the modules we actively touch in the
+# 2026 stack refresh; the legacy campaign / config_generated code is excluded
+# in pyproject.toml to avoid opening 9700+ unrelated fixes in a single PR.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: ["--fix", "--exit-non-zero-on-fix"]
+      - id: ruff-format

@@ -5,7 +5,10 @@ import time
 from datetime import datetime, timedelta
 
 import inflection
-from cached_property import cached_property
+try:
+    from functools import cached_property
+except ImportError:  # pragma: no cover - Py<3.8 only
+    from cached_property import cached_property  # type: ignore
 
 from module.base.decorator import del_cached_property
 from module.config.config import AzurLaneConfig, TaskEnd

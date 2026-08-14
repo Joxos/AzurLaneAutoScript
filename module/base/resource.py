@@ -92,13 +92,12 @@ def release_resources(next_task=''):
     # This will release 20-40MB
     from module.webui.setting import State
     if State.deploy_config.UseOcrServer:
-        if not next_task:
-            # Disconnect OCR server on idle
-            from module.ocr.ocr import OCR_MODEL
-            try:
-                OCR_MODEL.close()
-            except AttributeError:
-                pass
+        # Zerorpc-based OCR server was removed in the 2026 stack refresh.
+        # The setting is preserved for backward compatibility but has no
+        # effect; the per-instance OCR below is always used.
+        from module.logger import logger
+        logger.debug('UseOcrServer setting is ignored; per-instance OCR is always used')
+        from module.ocr.ocr import OCR_MODEL  # noqa: F401
     else:
         # Release only when using per-instance OCR
         from module.ocr.ocr import OCR_MODEL

@@ -2,7 +2,12 @@ import re
 import typing as t
 from copy import deepcopy
 
-from cached_property import cached_property
+# cached_property has been in functools since Python 3.8; the standalone
+# backport was dropped from the dependency tree in the 2026 stack refresh.
+try:
+    from functools import cached_property  # noqa: F401
+except ImportError:  # pragma: no cover - kept for Py<3.8 only
+    from cached_property import cached_property  # type: ignore
 
 from deploy.utils import DEPLOY_TEMPLATE, poor_yaml_read, poor_yaml_write
 from module.base.timer import timer

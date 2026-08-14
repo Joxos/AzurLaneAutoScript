@@ -1,3 +1,4 @@
+import re
 import time
 from datetime import timedelta
 from typing import TYPE_CHECKING
@@ -7,16 +8,11 @@ from module.base.button import Button
 from module.base.decorator import cached_property
 from module.base.utils import *
 from module.logger import logger
-from module.ocr.rpc import ModelProxyFactory
-from module.webui.setting import State
+from module.ocr.al_ocr import AlOcr
+from module.ocr.models import OCR_MODEL
 
 if TYPE_CHECKING:
-    from module.ocr.al_ocr import AlOcr
-
-if not State.deploy_config.UseOcrServer:
-    from module.ocr.models import OCR_MODEL
-else:
-    OCR_MODEL = ModelProxyFactory()
+    from module.webui.setting import State  # noqa: F401
 
 
 class Ocr:
@@ -99,6 +95,10 @@ class Ocr:
         # self.cnocr.debug(image_list)
 
         result_list = self.cnocr.atomic_ocr_for_single_lines(image_list, self.alphabet)
+        # RapidOCR/AlOcr returns list[list[str]]; the legacy contract was
+        # list[list[str]] too, but each inner list was one character. Flatten
+        # to the legacy shape so callers (Digit / Duration / etc.) keep
+        # working without changes.
         result_list = [''.join(result) for result in result_list]
         result_list = [self.after_process(result) for result in result_list]
 
