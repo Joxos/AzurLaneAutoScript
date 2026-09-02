@@ -146,6 +146,18 @@ class LoginHandler(UI):
         finally:
             self.device.screenshot_interval_set()
 
+    def handle_app_login_flow(self, get_ship: bool = True) -> bool:
+        """P1 pilot: the app-login loop as flow data (design §3.4-A).
+
+        The legacy `_handle_app_login` stays in place for the equivalence
+        harness and as fallback; run both against recorded screenshots
+        before switching callers (design §3.6-P1-a).
+        """
+        from module.flow.engine import FlowEngine
+        from module.handler.flows.app_login import make_app_login
+
+        return bool(FlowEngine(owner=self, device=self.device, config=self.config).run(make_app_login(get_ship)))
+
     def app_stop(self):
         logger.hr("App stop")
         self.device.app_stop()

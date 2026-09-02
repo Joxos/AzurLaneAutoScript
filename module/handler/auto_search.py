@@ -108,14 +108,8 @@ class AutoSearchHandler(EnemySearchingHandler):
             logger.warning("Sidebar could not be ensured")
             return False
 
-    def _auto_search_set_click(self, setting):
-        """
-        Args:
-            setting (str):
-
-        Returns:
-            bool: If selected to the correct option.
-        """
+    def _auto_search_active_settings(self) -> list[int]:
+        """Indexes of currently active auto-search settings (pure detection)."""
         active = []
 
         for index, button in enumerate(AUTO_SEARCH_SETTINGS):
@@ -124,6 +118,19 @@ class AutoSearchHandler(EnemySearchingHandler):
 
         if not active:
             logger.warning("No active auto search setting found")
+        return active
+
+    def _auto_search_set_click(self, setting):
+        """
+        Args:
+            setting (str):
+
+        Returns:
+            bool: If selected to the correct option.
+        """
+        active = self._auto_search_active_settings()
+
+        if not active:
             return False
 
         logger.attr("Auto_Search_Setting", ", ".join([dic_setting_index_to_name[index] for index in active]))
@@ -166,6 +173,16 @@ class AutoSearchHandler(EnemySearchingHandler):
                 counter += 1
                 self.device.sleep((0.3, 0.5))
                 continue
+
+    def ensure_auto_search_setting_flow(self, setting: str) -> bool:
+        """P1 pilot: T3 variant of `auto_search_setting_ensure` as flow data.
+
+        Legacy method stays for the equivalence harness (design §3.6-P1-e).
+        """
+        from module.flow.engine import FlowEngine
+        from module.handler.flows.auto_search_ensure import make_auto_search_setting_ensure
+
+        return bool(FlowEngine(owner=self, device=self.device, config=self.config).run(make_auto_search_setting_ensure(setting)))
 
     _auto_search_offset = (5, 5)
     # Move 213px left when MULTIPLE_SORTIE appears
