@@ -1,10 +1,12 @@
 name: Release
 
 # Build the desktop release asset and publish it as a GitHub Release.
-# A release is a single NSIS installer (shell + bundled sidecar); the
-# installed app's updater (module/webui/updater.py) lists releases,
-# downloads the installer and runs it silently - the installer replaces
-# the shell and sidecar files and restarts the app.
+# Layout since 2026-09 (Tauri shell archived): the release is the PyInstaller
+# onedir backend (which serves the SPA and hosts `alas run desktop` via
+# pywebview). The installed app's updater (module/webui/updater.py) lists
+# releases, downloads the asset and replaces the whole bundle.
+# TODO(P0.5): NSIS setup.exe via deploy/packaging/alas_installer.nsi +
+# makensis; until then a portable zip is published.
 
 on:
   push:
@@ -56,18 +58,24 @@ jobs:
           # current version of the running build.
           Set-Content -Path "dist/alas-backend/version.txt" -Value "$env:GITHUB_REF_NAME" -NoNewline
 
-      - name: Build NSIS installer
-        working-directory: webapp-tauri
-        env:
-          CI: "true"
+      - name: Build installer (NSIS) or portable zip (P0.5)
+        id: build
+        shell: pwsh
         run: |
-          pnpm tauri build
-          Copy-Item -ErrorAction Stop "src-tauri/target/release/bundle/nsis/*-setup.exe" "..\Alas_${{ github.ref_name }}_x64-setup.exe" -Force
-          Get-ChildItem "..\Alas_*" | ForEach-Object { $_.FullName }
+          $nsi = "deploy/packaging/alas_installer.nsi"
+          if (Test-Path $nsi) {
+            makensis $nsi
+            Copy-Item -ErrorAction Stop "dist/Alas_${{ github.ref_name }}_x64-setup.exe" "Alas_${{ github.ref_name }}_x64-setup.exe" -Force
+            "asset=Alas_${{ github.ref_name }}_x64-setup.exe" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Host "alas_installer.nsi not present (P0.5) - publishing portable zip"
+            Compress-Archive -Path "dist/alas-backend" -DestinationPath "Alas_${{ github.ref_name }}_x64-portable.zip" -Force
+            "asset=Alas_${{ github.ref_name }}_x64-portable.zip" >> $env:GITHUB_OUTPUT
+          }
+          Get-ChildItem "Alas_*" | ForEach-Object { $_.FullName }
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: |
-            Alas_${{ github.ref_name }}_x64-setup.exe
+          files: ${{ steps.build.outputs.asset }}

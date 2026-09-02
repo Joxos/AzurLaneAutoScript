@@ -16,8 +16,6 @@ dev_tools/debug_tools
 /toolkit
 *.lock
 !uv.lock
-# The Tauri shell's lockfile is source-controlled (reproducible builds)
-!webapp-tauri/src-tauri/Cargo.lock
 config/reloadflag
 config/reloadalas
 test.py
@@ -266,9 +264,9 @@ pyrightconfig.json
 # Python virtual environments created by uv
 .venv*
 
-# Tauri shell
+# Tauri shell removed 2026-09-02 (desktop flavor now uses pywebview, see
+# module/cli/run.py); recoverable from git history.
 webapp-tauri/node_modules/
-webapp-tauri/src-tauri/target/
 webapp-tauri/dist/
 webapp-tauri/.env.development
 

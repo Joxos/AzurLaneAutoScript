@@ -1,111 +1,74 @@
-# Desktop 打包与分发
+# 桌面打包与分发
 
-> 状态：已实现并实测（260821 起采用日期版本命名）；构建与发布由
-> `.github/workflows/release.yml` 在 CI 完成。
+> 状态：P0.5 进行中（2026-09-02 起 Tauri 壳归档，桌面窗口改用 pywebview）。
+> 构建与发布由 `.github/workflows/release.yml` 在 CI 完成。
 
 ## 目标架构
 
 ```
-[NSIS 安装包]（currentUser，如 %LOCALAPPDATA%\Programs\Alas）
-  ├─ alas-shell.exe           ← Tauri 壳
-  └─ alas-backend/            ← PyInstaller onedir sidecar（bundle.resources）
-       ├─ alas-backend.exe
+[portable zip / NSIS 安装包]（P0.5 前为 zip；NSIS 后为 setup.exe）
+  └─ alas-backend/            ← PyInstaller onedir（一体化,无独立壳）
+       ├─ alas-backend.exe    ← 入口（console; gui.py shim → module.cli）
        ├─ version.txt         ← release tag
-       └─ _internal/          ← 运行时 + 打包 datas
+       └─ _internal/          ← 运行时 + 打包 datas（含 webapp-tauri/dist 与 pywebview）
 ```
 
-- 安装目录 = 用户数据目录：`config/ log/ assets/ bin/` 与壳并列。首次运行由壳从
-  `alas-backend/_internal/` 播种；NSIS 更新只覆盖安装清单里的文件（exe + sidecar），
-  用户数据天然保留。
-- 壳启动 `alas-backend.exe gui.py --port <port>`（cwd = 安装目录），HTTP 轮询端口
-  就绪后显示窗口。关窗/托盘退出/壳崩溃时 Job Object 整树收割后端。
-- 更新：后端 `module/webui/updater.py` 拉取 GitHub release 列表，安装 = 静默执行
-  setup.exe `/S /R`（安装器重启应用）。无 tauri updater 插件、无签名依赖。
+- **一体化解耦壳**：桌面窗口 = `alas-backend.exe run desktop`（pywebview + 系统
+  WebView2，缺失时回退浏览器）；无 GUI 场景 = `alas run headless`；远程/浏览器
+  场景 = `alas run web`。全部由一个 Python 发行物承载。
+- 用户数据目录：`config/ log/ assets/ bin/` 与发行物并列；首次运行由 backend 播种，
+  更新整包替换，用户数据天然保留。
+- 更新：后端 `module/webui/updater.py` 拉取 GitHub release 列表，安装 = 整包替换
+  （NSIS 就绪前为手动替换 zip，`/S /R` 静默安装为 P0.5 目标）。无 tauri updater、
+  无签名依赖（SmartScreen 可能提示）。
 
-## 1. PyInstaller onedir sidecar（后端）
+## 1. PyInstaller onedir（唯一产物）
 
 ```powershell
-uv tool install "pyinstaller>=6.19"
-pyinstaller --clean --noconfirm deploy/packaging/alas_backend.spec
+# 推荐走统一入口
+uv run alas build frontend    # pnpm build → webapp-tauri/dist
+uv run alas build sidecar     # pyinstaller deploy/packaging/alas_backend.spec
 # 产物：dist/alas-backend/（CI 里再写 version.txt = tag）
 ```
 
 - spec 要点：`console=True`（未捕获异常走 stderr 而非隐藏的模态框）；datas 为
   assets/bin/config/module 子目录 + `webapp-tauri/dist`（SPA 由后端托管）；
-  `pathex` 用绝对路径（含 `.venv/Lib/site-packages`，规避 packaging 20.9 遮蔽）。
+  `hiddenimports` 增加 uvicorn/websockets/multipart/webview；`pathex` 用绝对路径
+  （含 `.venv/Lib/site-packages`，规避 packaging 20.9 遮蔽）。
 - 冻结适配最小集：`module/base/paths.py::get_resource_root()`（_MEIPASS）、
-  `module/logger.py` 的 `not frozen` chdir 守卫、`gui.py` 的 `freeze_support()`。
+  `module/logger.py` 的 `not frozen` chdir 守卫、`module/cli/app.py::main()` 的
+  `freeze_support()`。
+- 前端 dev：`cd webapp-tauri && pnpm dev`（vite 代理到 `alas run web` 的 22267）。
 
-## 2. Tauri 壳构建
+## 2. 旧 Tauri 壳（已移除）
 
-> **前置依赖**：`tauri.conf.json` 的 `bundle.resources` 引用 `dist/alas-backend`
-> （PyInstaller onedir 后端 sidecar）。tauri-build 在**编译阶段**就校验该路径，
-> sidecar 缺失时 `cargo build --release` / `pnpm tauri build` 直接报错：
->
-> ```text
-> error: failed to run custom build command for `alas-shell ...`
-> resource path `..\..\dist\alas-backend` doesn't exist
-> ```
->
-> 因此 sidecar 必须先于壳构建。构建入口统一在 `webapp-tauri/package.json`：
-
-```powershell
-cd webapp-tauri
-pnpm build:shell       # 前端 pnpm build → sidecar(增量) → cargo build --release
-pnpm build:desktop     # 前端 + sidecar + NSIS 安装包（等价于 CI 的三步）
-pnpm build:sidecar     # 只重建 sidecar（增量；--clean 强制全量：pnpm build:sidecar:clean）
-```
-
-手动分步（与脚本等价）：
-
-```powershell
-cd webapp-tauri
-pnpm install --frozen-lockfile
-pnpm build                 # 前端 SPA，sidecar 内嵌 + 壳 frontendDist 都需要
-cd ..
-pyinstaller --clean --noconfirm deploy/packaging/alas_backend.spec
-# 产物：dist/alas-backend/（CI 里再写 version.txt = tag）
-cd webapp-tauri
-pnpm tauri build           # 产物 src-tauri/target/release/bundle/nsis/*-setup.exe
-```
-
-> spec 内已固定 `distpath`/`workpath` 为 repo 根 `dist/`、`build/alas_backend/`，
-> 与调用目录无关（PyInstaller 默认按 CWD 输出，不固定会随入口目录漂移）。
-
-- `bundle.resources` 携带 `dist/alas-backend` → 安装后与 exe 并列（externalBin
-  会压平 onedir 目录，不可用）。
-- `installMode: currentUser`：安装目录可写，用户数据落在安装目录。
-- `webviewInstallMode: downloadBootstrapper`：目标机缺 WebView2 时自动下载引导。
-- 无 Authenticode 签名（SmartScreen 会提示；后续可加）。
+2026-09-02 起 `webapp-tauri/src-tauri/` 从仓库删除（git 历史可随时恢复）。删除前它
+提供：frameless 窗口、托盘、NSIS 外部捆绑、Job Object 整树收割。对应的替代实现：
+- 窗口 → pywebview（`module/cli/run.py::run_desktop`）；
+- 杀进程树 → 关窗触发 uvicorn 优雅停机，lifespan `_shutdown` 停止 bot 进程；
+- NSIS 捆绑 → P0.5 目标（`deploy/packaging/alas_installer.nsi` + makensis）。
 
 ## 3. 发布新版本（操作手册）
 
 **版本规则**：对外版本 = GitHub tag / release 标题 = `vYYYY.MM.DD`（如
-`v2026.08.21`）；资产名 `Alas_<tag>_x64-setup.exe`、应用内"当前版本"
-（version.txt）均为 tag 值，三者始终一致。Tauri 内部 version 字段沿用日期
-semver `YY.M.DD`（如 `26.8.21`，对应 tag 的 YYYY 年缩两位）。
+`v2026.08.21`）；资产名 `Alas_<tag>_x64-portable.zip`（NSIS 就绪后为
+`..._x64-setup.exe`）、应用内"当前版本"（version.txt）均为 tag 值，三者一致。
 
 **发布一个版本只需三步**：
 
 ```powershell
-# ① 改版本号：内部 semver → YY.M.DD（如 26.8.22，对应发布日）
-#    webapp-tauri/src-tauri/tauri.conf.json 的 "version"
-#    webapp-tauri/src-tauri/Cargo.toml       的 version
-#    webapp-tauri/package.json               的 "version"
-
-# ② 提交推送
+# ① 提交改动（无需改内部版本号；版本全部由 tag 决定）
 git add -A
 git commit -m "release v2026.08.22"
 git push fork master
 
-# ③ 打 tag 并推送 → CI 自动构建并发布（约 12 分钟）
+# ② 打 tag 并推送 → CI 自动构建并发布（约 10 分钟）
 git tag v2026.08.22
 git push fork v2026.08.22
 ```
 
-CI 完成后 GitHub Release `v2026.08.22` 自动创建，资产
-`Alas_v2026.08.22_x64-setup.exe`。已安装的应用在 主页→更新器 刷新后即可看到
-并安装该版本。
+CI 完成后 GitHub Release `v2026.08.22` 自动创建并上传资产。已安装的应用在
+主页→更新器 刷新后即可看到并安装该版本（zip 阶段需手动解压替换）。
 
 **注意事项**：
 - tag 不可重用：同一版本要重发时，先删掉再重打——
@@ -118,13 +81,15 @@ CI 完成后 GitHub Release `v2026.08.22` 自动创建，资产
 
 ## 4. 发布流水线内部（CI）
 
-`.github/workflows/release.yml`：推 tag（名称不限，惯例 YYMMDD）→ Windows
-runner 上 uv sync → 前端 `pnpm build` → PyInstaller sidecar（`version.txt =
-$GITHUB_REF_NAME`）→ NSIS（`pnpm tauri build`）→ softprops/action-gh-release
-创建同名 Release 并上传 `Alas_<ref>_x64-setup.exe`。
+`.github/workflows/release.yml`：推 tag → Windows runner 上 `uv sync`（含
+pywebview 主依赖）→ 前端 `pnpm build` → PyInstaller sidecar（`version.txt =
+$GITHUB_REF_NAME`）→ 打包（`deploy/packaging/alas_installer.nsi` 存在则 makensis
+出 setup.exe，否则出 portable zip）→ softprops/action-gh-release 上传资产。
 
 ## 5. 已知权衡
 
-- **卸载行为（实测）**：卸载器只删除壳 exe 与注册表项，侧车目录（~200MB）与
-  用户数据保留，需手动清理残留目录。更新路径不受影响。
+- **portable zip 阶段**：无安装器、无开始菜单快捷方式、无自动更新替换（用户手动
+  解压覆盖）；NSIS 落地（P0.5）后自动升级链路（`/S /R` 静默安装重启）才闭环。
+- **WebView2 runtime**：pywebview 使用系统 WebView2（Win10+ 随 Edge 预装）；
+  极老系统缺失时 `alas run desktop` 自动回退浏览器窗口（见 run.py）。
 - 更新下载走 GitHub 资产地址（国内网络环境可能需要 VPN）。

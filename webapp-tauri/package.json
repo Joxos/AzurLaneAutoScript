@@ -4,7 +4,6 @@
   "version": "26.8.21",
   "type": "module",
   "scripts": {
-    "tauri": "tauri",
     "dev": "vite",
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
@@ -14,15 +13,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "build:sidecar": "pyinstaller --noconfirm ../deploy/packaging/alas_backend.spec",
-    "build:sidecar:clean": "pyinstaller --clean --noconfirm ../deploy/packaging/alas_backend.spec",
-    "build:shell": "pnpm build && pnpm build:sidecar && cargo build --release --manifest-path src-tauri/Cargo.toml",
-    "build:desktop": "pnpm build && pnpm build:sidecar && pnpm tauri build"
+    "build:sidecar:clean": "pyinstaller --clean --noconfirm ../deploy/packaging/alas_backend.spec"
   },
   "dependencies": {},
   "devDependencies": {
     "@biomejs/biome": "^2",
     "@sveltejs/vite-plugin-svelte": "^7.3.0",
-    "@tauri-apps/cli": "^2.11.4",
     "@testing-library/svelte": "^5.4.2",
     "jsdom": "^30.0.1",
     "prettier": "^3.9.6",

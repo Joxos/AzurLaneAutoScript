@@ -51,6 +51,10 @@ hiddenimports = [
     "uvicorn.lifespan.on",
     "websockets.legacy",
     "multipart",
+    # pywebview desktop window (alas run desktop); Windows backend resolves
+    # the WebView2 runtime at runtime, only the package import is static.
+    "webview",
+    "webview.platforms.winforms",
 ]
 for pkg in ("cv2", "onnxruntime", "scipy", "av", "PIL"):
     b, d, h = collect_all(pkg)
