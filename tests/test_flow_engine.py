@@ -588,3 +588,199 @@ def test_drive_flows_valid():
 
     scroll = Scroll((0, 0, 10, 10), (255, 255, 255))
     assert validate_flow(_scroll_set_flow(scroll, 0.5, (-0.05, 0.05), True)) == []
+
+
+# ---------------------------------------------------------------------------
+# Task-level execution (run_task: steps / if / sub-flow / stop)
+# ---------------------------------------------------------------------------
+
+
+def test_run_task_sequence_and_if():
+    calls = []
+    flags = {"a": True, "b": False}
+
+    def _fa(ctx, args=None, **kw):
+        calls.append("a")
+
+    def _fb(ctx, args=None, **kw):
+        calls.append("b")
+
+    def _cond_a(ctx, args=None, **kw):
+        return flags["a"]
+
+    def _cond_b(ctx, args=None, **kw):
+        return flags["b"]
+
+    task = {
+        "name": "seq",
+        "steps": [
+            {"if": {"check": _cond_a, "then": [{"call": _fa}]}},
+            {"if": {"check": _cond_b, "then": [{"call": _fb}], "else": [{"call": _fb}]}},
+            {"call": _fb},
+        ],
+    }
+    owner = DriveOwner(FakeDevice(), [])
+    result = FlowEngine(owner=owner, device=owner.device).run_task(task)
+    assert result is None
+    assert calls == ["a", "b", "b"]
+
+
+def test_run_task_stop_value():
+    def _cond(ctx, args=None, **kw):
+        return True
+
+    task = {
+        "name": "stop",
+        "steps": [
+            {"if": {"check": _cond, "then": [{"stop": 42}]}},
+            {"call": lambda ctx, args=None, **kw: None},
+        ],
+    }
+    owner = DriveOwner(FakeDevice(), [])
+    result = FlowEngine(owner=owner, device=owner.device).run_task(task)
+    assert result == 42
+
+
+def test_run_task_subflow_runs_on_same_device():
+    engine = FlowEngine()
+    device = FakeDevice()
+    owner = DriveOwner(device, [{"present": ()}])
+    seen = []
+
+    def _call(ctx, args=None, **kw):
+        seen.append("inner")
+
+    def _check(ctx, args=None, **kw):
+        # must run on the same engine/device the task bound
+        seen.append(("tick", device.tick))
+        return True
+
+    task = {
+        "name": "with_flow",
+        "steps": [
+            {"flow": {
+                "name": "inner", "entry": "s",
+                "states": {"s": {
+                    "exit": {"check": {"custom": _check}, "on_success": {"exit": None}},
+                    "rules": [{"name": "r", "check": {"custom": _check}, "action": {"call": _call}}],
+                }},
+            }},
+        ],
+    }
+    result = engine.run_task(task, owner=owner)
+    assert result is None
+    assert "inner" in seen
+
+
+def test_run_task_validation():
+    from module.flow.model import validate_task
+
+    assert validate_task({"name": "x", "steps": [{"call": lambda c, a=None, **k: None}]}) == []
+    assert "steps" in " ".join(validate_task({"name": "x"}))
+    assert validate_task({"name": "x", "steps": [{"unknown": 1}]})
+    # if branch with un-callable check
+    assert validate_task({"name": "x", "steps": [{"if": {"check": True, "then": []}}]})
+    # stop cannot be combined
+    assert validate_task({"name": "x", "steps": [{"stop": 1, "call": lambda c, a=None, **k: None}]})
+
+
+def test_run_task_owner_injection_ctx():
+    owner = DriveOwner(FakeDevice(), [])
+    captured = {}
+
+    def _call(ctx, args=None, **kw):
+        captured["owner"] = ctx.owner
+
+    task = {"name": "ctx", "steps": [{"call": _call}]}
+    FlowEngine().run_task(task, owner=owner)
+    assert captured["owner"] is owner
+
+
+# ---------------------------------------------------------------------------
+# Session runtime (module.flow.runtime): one engine per process
+# ---------------------------------------------------------------------------
+
+
+def test_runtime_singleton_and_binding():
+    from module.flow.runtime import get_runtime, run_flow, set_runtime
+
+    set_runtime(None)
+    engine_a = get_runtime()
+    engine_b = get_runtime()
+    assert engine_a is engine_b
+
+    device = FakeDevice()
+    owner = DriveOwner(device, [{"present": ()}])
+    run_flow(
+        {
+            "name": "lazy", "entry": "s",
+            "states": {"s": {"exit": {"check": {"custom": lambda c, a=None, **k: True},
+                                        "on_success": {"exit": None}},
+                              "rules": []}},
+        },
+        owner=owner,
+    )
+    assert engine_a.device is device
+
+
+def test_runtime_task_freebies_wiring(monkeypatch):
+    """The pilot: Freebies registry entry resolves to a task flow and the
+    app shell binds ONE engine (device/config) as the session runtime."""
+    from alas import AzurLaneAutoScript
+    from module.tasks.registry import TASK_BY_COMMAND, TASK_REGISTRY
+
+    entry = TASK_REGISTRY["Freebies"]
+    assert entry.task_flow == "make_freebies_task"
+    assert TASK_BY_COMMAND["freebies"] == "Freebies"
+
+    import module.freebies.freebies as fw
+
+    task = getattr(fw, entry.task_flow)()
+    assert task["name"] == "freebies"
+    assert all(isinstance(s, dict) for s in task["steps"])
+    calls = [s["call"] for s in task["steps"] if "call" in s]
+    assert any(getattr(c, "__name__", "") == "_freebies_mail" for c in calls)
+
+    # shell.flow_engine: lazily created on first access, bound to the shell's
+    # device/config, and registered as the process-wide runtime.
+    fake_device = FakeDevice()
+    fake_config = type("C", (), {})()
+    monkeypatch.setattr(AzurLaneAutoScript, "device", property(lambda self: fake_device))
+    monkeypatch.setattr(AzurLaneAutoScript, "config", property(lambda self: fake_config))
+
+    bot = AzurLaneAutoScript("registry_probe")
+    engine = bot.flow_engine
+    assert engine.device is fake_device
+    assert engine.config is fake_config
+    from module.flow.runtime import get_runtime
+
+    assert get_runtime() is engine
+
+
+def test_resolve_task_task_flow_path(monkeypatch):
+    """`_resolve_task` routes a task_flow entry through the session engine
+    instead of calling the legacy run() method; the task instance is owner."""
+    import module.freebies.freebies as fw
+    from alas import AzurLaneAutoScript
+
+    fake_device = FakeDevice()
+    fake_config = type("C", (), {"Emulator_ServerName": "probe"})()
+    monkeypatch.setattr(AzurLaneAutoScript, "device", property(lambda self: fake_device))
+    monkeypatch.setattr(AzurLaneAutoScript, "config", property(lambda self: fake_config))
+    # avoid real Freebies.__init__ side effects
+    monkeypatch.setattr(fw.Freebies, "__init__", lambda self, config=None, device=None: None)
+
+    calls = []
+
+    def _fake_run_task(task, *, owner=None, params=None):
+        calls.append((task["name"], owner))
+        return None
+
+    bot = AzurLaneAutoScript("resolve_probe")
+    monkeypatch.setattr(bot.flow_engine, "run_task", _fake_run_task)
+
+    fn = bot._resolve_task("freebies")
+    assert fn() is None
+    assert calls
+    assert calls[0][0] == "freebies"
+    assert isinstance(calls[0][1], fw.Freebies)

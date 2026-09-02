@@ -73,12 +73,33 @@ class AzurLaneAutoScript(Scheduler):
             logger.exception(e)
             exit(1)
 
+    @cached_property
+    def flow_engine(self):
+        """Session flow runtime: ONE engine for every flow/task of this bot.
+
+        The scheduler drives tasks as TaskSpec data through this instance
+        (registry entries with `task_flow`), and domain modules reach it via
+        module.flow.runtime.run_flow — so device/config/engine state live in
+        one place per process.
+        """
+        from module.flow.engine import FlowEngine
+        from module.flow.runtime import set_runtime
+
+        engine = FlowEngine(device=self.device, config=self.config)
+        set_runtime(engine)
+        return engine
+
     def _resolve_task(self, command):
         """
         Resolve a task command (snake_case method name or registered task)
         to a zero-arg callable. Registered tasks come from the declarative
         TASK_REGISTRY; infra commands (restart/start/goto_main) fall back to
         method lookup for backward compatibility.
+
+        Tasks declared with `task_flow` are executed as TaskSpec data on the
+        session FlowEngine (`self.flow_engine.run_task`), so every task of a
+        session runs on the same engine instance; the task class instance is
+        the flow's owner.
         """
         from module.tasks.registry import TASK_BY_COMMAND, TASK_REGISTRY
 
@@ -100,6 +121,11 @@ class AzurLaneAutoScript(Scheduler):
             if entry.task_arg:
                 kwargs = {**kwargs, "task": task_name}
             instance = task_class(config=self.config, device=self.device, **kwargs)
+
+            if entry.task_flow is not None:
+                task = getattr(module, entry.task_flow)()
+                return lambda: self.flow_engine.run_task(task, owner=instance)
+
             method = entry.method
             assert method is not None
             method_kwargs = (
