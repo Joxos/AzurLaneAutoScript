@@ -112,7 +112,7 @@ def validate_flow(flow: dict[str, Any]) -> list[str]:
             mode = ot.get("mode")
             if mode == "goto" and ot.get("goto") not in states:
                 errors.append(f"state {name}: on_timeout.goto {ot.get('goto')!r} not in states")
-            elif mode not in (None, "warn", "raise", "warn_proceed"):
+            elif mode not in (None, "warn", "raise", "warn_proceed", "exit", "goto"):
                 errors.append(f"state {name}: unknown on_timeout mode {mode!r}")
 
         for idx, rule in enumerate(state.get("rules", []) or []):

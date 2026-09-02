@@ -393,3 +393,91 @@ def test_auto_search_setting_ensure_exits_true_when_active():
     assert result is True
     sleeps = [c for c in device.calls if c[0] == "sleep"]
     assert sleeps == []
+
+
+# ---------------------------------------------------------------------------
+# B1 samples: ambush + enemy_searching
+# ---------------------------------------------------------------------------
+
+
+class AmbushOwner(ScriptedOwner):
+    def combat_appear(self):
+        return self._state().get("combat_appear", False)
+
+    def handle_combat_low_emotion(self):
+        return False
+
+    def handle_retirement(self):
+        return False
+
+    def _handle_air_raid(self):
+        pass
+
+
+def test_ambush_attack_flow_valid_and_dry_run():
+    from module.handler.ambush import _ambush_attack_flow
+
+    flow = _ambush_attack_flow()
+    assert validate_flow(flow) == []
+    device = FakeDevice()
+    plan = [{"present": ("MAP_AMBUSH_ATTACK",)}, {"present": ("MAP_AMBUSH_ATTACK",)},
+            {"present": (), "combat_appear": True}]
+    owner = AmbushOwner(device, plan)
+    result = FlowEngine(owner=owner, device=device).run(flow)
+    assert result is None  # original returns None (break on combat_appear)
+    clicks = [c for c in device.calls if c[0] == "click"]
+    assert any("MAP_AMBUSH_ATTACK" in c for c in clicks)
+
+
+def test_air_raid_flow_valid():
+    from module.handler.ambush import _air_raid_flow
+
+    assert validate_flow(_air_raid_flow()) == []
+
+
+class EnemyOwner(ScriptedOwner):
+    def is_event_animation(self):
+        return False
+
+    def is_in_map(self):
+        return True
+
+    def handle_in_stage(self):
+        return False
+
+    def enemy_searching_appear(self):
+        return "ENEMY_SEARCH" in self._state().get("present", ())
+
+    def enemy_searching_color_initial(self):
+        return None
+
+    def handle_auto_search_exit(self, drop=None):
+        return False
+
+    def handle_vote_popup(self):
+        return False
+
+    def handle_story_skip(self):
+        return False
+
+    def handle_guild_popup_cancel(self):
+        return False
+
+    def handle_urgent_commission(self, drop=None):
+        return False
+
+    def handle_enemy_flashing(self):
+        self.device.sleep(1.2)
+
+
+def test_enemy_searching_flow_valid_and_dry_run():
+    from module.handler.enemy_searching import _enemy_searching_flow
+
+    flow = _enemy_searching_flow()
+    assert validate_flow(flow) == []
+    device = FakeDevice()
+    # t1: nothing; t2: searching appears (waiting -> confirm); t3+: gone -> exit
+    plan = [{"present": ()}, {"present": ("ENEMY_SEARCH",)}] + [{"present": ()} for _ in range(6)]
+    owner = EnemyOwner(device, plan)
+    result = FlowEngine(owner=owner, device=device).run(flow)
+    assert result is True

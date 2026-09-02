@@ -69,22 +69,25 @@ class FlowEngine:
         state_holder = [entry or flow.get("entry") or next(iter(states))]
         timeout_holder = [self._make_timeout(states[state_holder[0]])]
 
-        def apply(control: Any) -> Any:
-            """Return a flow exit value, or None to keep looping (switches included)."""
+        def apply(control: Any) -> tuple[str, Any] | None:
+            """Return ("__done__", exit_value) when the flow finished, None to keep looping."""
             routed = self._route(control)
             if routed is None:
                 return None
             kind, value = routed
             if kind == "exit":
-                return value
+                return ("__done__", value)
             if value == EXIT:
-                return None
+                return ("__done__", None)
             # state switch
             state_holder[0] = value
             timeout_holder[0] = self._make_timeout(states[value])
             self._exit_timers.clear()
             self._log(f"state switch -> {value}")
             return None
+
+        def _done(result: tuple[str, Any] | None) -> bool:
+            return result is not None
 
         tick = 0
         while True:
@@ -101,8 +104,8 @@ class FlowEngine:
             # 2. exit guard (original "End" block at the top of the loop)
             if state.get("exit") is not None:
                 result = apply(self._tick_exit(state_holder[0], state["exit"], ctx))
-                if result is not None:
-                    return result
+                if _done(result):
+                    return result[1]
 
             # 3-4. group rules then state rules, in priority order
             for rule in [*groups, *state.get("rules", [])]:
@@ -119,8 +122,8 @@ class FlowEngine:
                             att["exceeded"] = True
                             self._log(f"state={state_holder[0]} attempts exceeded ({att_spec.get('limit')})")
                             result = apply(self._apply_control(att_spec.get("on_exceed"), ctx))
-                            if result is not None:
-                                return result
+                            if _done(result):
+                                return result[1]
                         continue
 
                 matched = False
@@ -150,7 +153,14 @@ class FlowEngine:
                 )
                 result = None
                 if not auto_done:
-                    result = self._action(action, ctx)
+                    if action and set(action) == {"reset_timeout"}:
+                        # pure state-timeout reset (original `timeout.reset()`), no device action
+                        result = None
+                    else:
+                        result = self._action(action, ctx)
+                if action and action.get("reset_timeout") and timeout_holder[0] is not None:
+                    # original `timeout.reset()` semantics (e.g. keep waiting while not in map)
+                    timeout_holder[0] = timeout_holder[0].reset()
                 if auto_done:
                     control = self._apply_control(rule.get("then"), ctx) if auto_handled else None
                 else:
@@ -160,10 +170,10 @@ class FlowEngine:
                     timeout_holder[0] = _timer(rule["on_handled"]["extend_timeout"]).start()
 
                 result = apply(control)
-                if result is not None:
+                if _done(result):
                     if control is not None:
                         self._log(f"state={state_holder[0]} exit ✓")
-                    return result
+                    return result[1]
                 effective_stop = rule.get("stop", True)
                 if auto_done:
                     effective_stop = effective_stop and auto_handled
@@ -174,8 +184,8 @@ class FlowEngine:
             # 5. state timeout
             if timeout_holder[0] is not None and timeout_holder[0].reached():
                 result = apply(self._apply_timeout(state_holder[0], state.get("on_timeout"), ctx))
-                if result is not None:
-                    return result
+                if _done(result):
+                    return result[1]
                 timeout_holder[0] = timeout_holder[0].reset()
 
     def run_group(self, group: list[dict[str, Any]], params: dict[str, Any] | None = None) -> bool:
