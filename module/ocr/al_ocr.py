@@ -1,6 +1,5 @@
 import itertools
 import os
-import time
 
 import cv2
 import numpy as np
@@ -9,7 +8,6 @@ from PIL import Image
 
 from module.exception import RequestHumanTakeover
 from module.logger import logger
-from module.ocr.probe import OcrProbe  # PROBE: temporary, revert with the probe commit
 
 # The OCR models are small (3-9MB); spawning one thread per core (24 here)
 # for every inference call creates a thread-creation storm that contends with
@@ -264,11 +262,7 @@ class AlOcr:
         batch_size = len(img_list)
         img_list, img_widths = self._pad_arrays(img_list)
 
-        # PROBE: full call timing (preprocess is done above; this spans
-        # inference + decode).
-        _t0 = time.perf_counter()
         prob = self._predict(np.ascontiguousarray(np.array(img_list, dtype="float32")))
-        OcrProbe.record("ocr", time.perf_counter() - _t0, batch_size, img_list[0].shape)
         # [T*batch_size, num_classes] -> [T, batch_size, num_classes]
         prob = np.reshape(prob, (-1, batch_size, prob.shape[1]))
 
@@ -282,10 +276,7 @@ class AlOcr:
         return res
 
     def _predict(self, batch):
-        # PROBE: pure onnxruntime inference timing.
-        _t0 = time.perf_counter()
         out = self._session.run(["probs"], {"data": batch})[0]
-        OcrProbe.record("predict", time.perf_counter() - _t0, batch.shape[0], batch.shape)
         return out
 
     def _gen_mask(self, prob_shape):
