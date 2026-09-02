@@ -33,6 +33,25 @@ def _timer(seconds: float, count: int | None = None) -> Timer:
     return Timer(seconds, count=count)
 
 
+def make_loop_flow(
+    name: str,
+    exit_check: dict[str, Any],
+    rules: list[dict[str, Any]] | None = None,
+    confirm: dict[str, Any] | None = None,
+    timeout: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Generic "loop until exit_check" flow builder (domain modules reuse this)."""
+    state: dict[str, Any] = {"rules": rules or []}
+    state["exit"] = {
+        "check": exit_check,
+        "confirm": confirm or {},
+        "on_success": {"exit": True},
+    }
+    if timeout:
+        state["on_timeout"] = timeout
+    return {"name": name, "entry": "s", "states": {"s": state}}
+
+
 class FlowEngine:
     """Runs one Flow against a domain `owner` (handler instance)."""
 
@@ -165,6 +184,11 @@ class FlowEngine:
                 if action and action.get("reset_timeout") and timeout_holder[0] is not None:
                     # original `timeout.reset()` semantics (e.g. keep waiting while not in map)
                     timeout_holder[0] = timeout_holder[0].reset()
+                if rule.get("reset_confirm"):
+                    # original confirm_timer reset on every handled action
+                    timer = getattr(self.owner, rule["reset_confirm"], None)
+                    if timer is not None:
+                        timer.reset()
                 if auto_done:
                     control = self._apply_control(rule.get("then"), ctx) if auto_handled else None
                 else:
