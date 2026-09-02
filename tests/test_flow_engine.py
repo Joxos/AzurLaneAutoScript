@@ -481,3 +481,22 @@ def test_enemy_searching_flow_valid_and_dry_run():
     owner = EnemyOwner(device, plan)
     result = FlowEngine(owner=owner, device=device).run(flow)
     assert result is True
+
+
+def test_info_handler_wait_flows_valid():
+    from module.handler.info_handler import (
+        _ensure_no_info_bar_flow,
+        _ensure_no_story_flow,
+        _info_bar_count_g,
+        _simple_wait_flow,
+        _wait_until_manjuu_disappear_flow,
+    )
+
+    flows = [
+        _simple_wait_flow("t", {"not": {"custom": _info_bar_count_g}}),
+        _ensure_no_info_bar_flow(0.6),
+        _ensure_no_story_flow(),
+        _wait_until_manjuu_disappear_flow(),
+    ]
+    for flow in flows:
+        assert validate_flow(flow) == []
