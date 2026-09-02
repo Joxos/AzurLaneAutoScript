@@ -163,13 +163,13 @@ class AmbushHandler(Combat):
         """
         Wait until air raid disappeared
         """
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         logger.info("Map air raid")
-        FlowEngine(owner=self, device=self.device, config=self.config).run(_air_raid_flow())
+        run_flow(_air_raid_flow())
 
     def _handle_ambush_evade(self):
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         logger.info("Map ambushed")
         # Wait MAP_AMBUSH_EVADE
@@ -177,17 +177,17 @@ class AmbushHandler(Combat):
         self.handle_info_bar()
 
         # Click MAP_AMBUSH_EVADE, then OCR the result (success/failed/unrecognized)
-        FlowEngine(owner=self, device=self.device, config=self.config).run(_ambush_evade_flow())
+        run_flow(_ambush_evade_flow())
 
     def _handle_ambush_attack(self):
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         logger.info("Map ambushed")
         # Wait MAP_AMBUSH_ATTACK
         self.wait_until_appear(MAP_AMBUSH_ATTACK, offset=(30, 30))
 
         # Click MAP_AMBUSH_ATTACK
-        FlowEngine(owner=self, device=self.device, config=self.config).run(_ambush_attack_flow())
+        run_flow(_ambush_attack_flow())
 
         # In battle
         logger.attr("Ambush_evade", "attack")
@@ -200,20 +200,21 @@ class AmbushHandler(Combat):
             return self._handle_ambush_attack()
 
     def handle_ambush(self):
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_group
 
         if not self.config.MAP_HAS_AMBUSH:
             return False
 
         # Dispatch as a single-shot group (original if-chain semantics)
         return bool(
-            FlowEngine(owner=self, device=self.device, config=self.config).run_group(
+            run_group(
                 [
                     {"name": "air_raid", "check": {"custom": _air_raid_appear}, "action": {"call": _run_air_raid}},
                     {"name": "ambush", "check": {"custom": _ambush_appear}, "action": {"call": _run_ambush}},
                     {"name": "evade_shown", "check": {"button": MAP_AMBUSH_EVADE, "offset": (30, 30)},
                      "action": {"call": _run_ambush}},
-                ]
+                ],
+                owner=self,
             )
         )
 

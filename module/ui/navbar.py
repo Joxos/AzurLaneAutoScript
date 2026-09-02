@@ -237,10 +237,8 @@ class Navbar:
                 text += f"{k}={locals().get(k, None)} "
         logger.info(f"{self.name} set to {text.strip()}")
 
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         return bool(
-            FlowEngine(owner=main, device=main.device, config=main.config, skip_first=skip_first_screenshot).run(
-                _nav_set_flow(self, left, right)
-            )
+            run_flow(_nav_set_flow(self, left, right), owner=main, skip_first=skip_first_screenshot)
         )

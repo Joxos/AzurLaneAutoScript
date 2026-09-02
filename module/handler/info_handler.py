@@ -141,9 +141,9 @@ class InfoHandler(ModuleBase):
         return len(peaks)
 
     def wait_until_info_bar_disappear(self):
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
-        FlowEngine(owner=self, device=self.device, config=self.config).run(
+        run_flow(
             _simple_wait_flow("wait_until_info_bar_disappear", {"not": {"custom": _info_bar_count_g}})
         )
 
@@ -155,10 +155,10 @@ class InfoHandler(ModuleBase):
             return False
 
     def ensure_no_info_bar(self, timeout=0.6, skip_first_screenshot=True):
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         self._flow_once_handled = False
-        FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
+        run_flow(
             _ensure_no_info_bar_flow(timeout)
         )
         return self._flow_once_handled
@@ -527,10 +527,10 @@ class InfoHandler(ModuleBase):
         return self.story_skip(drop=drop)
 
     def ensure_no_story(self, skip_first_screenshot=True):
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         logger.info("Ensure no story")
-        FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
+        run_flow(
             _ensure_no_story_flow()
         )
 
@@ -585,9 +585,9 @@ class InfoHandler(ModuleBase):
         """
         # Abuse of notation. Template do not have readable name, so add string here.
         self.device.stuck_record_add("TEMPLATE_MANJUU")
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
-        FlowEngine(owner=self, device=self.device, config=self.config).run(_wait_until_manjuu_disappear_flow())
+        run_flow(_wait_until_manjuu_disappear_flow())
 
     def handle_manjuu(self):
         """

@@ -114,7 +114,7 @@ class SupplyPack(CampaignStatus):
         Returns:
             bool: If bought.
         """
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         logger.hr("Supply pack buy")
         [self.interval_clear(asset) for asset in [GET_ITEMS_1, GET_ITEMS_2, supply_pack, BUY_CONFIRM]]
@@ -122,8 +122,9 @@ class SupplyPack(CampaignStatus):
         logger.info(f"Buying {supply_pack}")
         self._sp_confirm = Timer(1, count=3).start()
         executed = bool(
-            FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
-                _supply_pack_buy_flow(supply_pack), params={"_sp_executed": False}
+            run_flow(
+                _supply_pack_buy_flow(supply_pack), owner=self, skip_first=skip_first_screenshot,
+                params={"_sp_executed": False},
             )
         )
         logger.info(f"Supply pack buy finished, executed={executed}")
@@ -163,11 +164,11 @@ class SupplyPack_250814(SupplyPack):
         Returns:
             int: Oil amount
         """
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         return int(
-            FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
-                _get_oil_flow(), params={"_oil_amount": 0}
+            run_flow(
+                _get_oil_flow(), owner=self, skip_first=skip_first_screenshot, params={"_oil_amount": 0}
             )
             or 0
         )

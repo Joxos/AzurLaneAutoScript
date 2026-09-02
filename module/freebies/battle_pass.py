@@ -141,14 +141,15 @@ class BattlePass(Combat, UI):
             in: page_battle_pass
             out: page_battle_pass
         """
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         logger.hr("Battle pass receive", level=1)
         self.battle_status_click_interval = 2
         self._bp_confirm = Timer(1, count=3).start()
         received = bool(
-            FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
-                _battle_pass_receive_flow(), params={"_bp_received": False}
+            run_flow(
+                _battle_pass_receive_flow(), owner=self, skip_first=skip_first_screenshot,
+                params={"_bp_received": False},
             )
         )
         logger.info(f"Battle pass receive finished, received={received}")

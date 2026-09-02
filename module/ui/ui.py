@@ -4,7 +4,7 @@ from module.base.button import Button
 from module.base.decorator import run_once
 from module.base.timer import Timer
 from module.exception import GameNotRunningError, GamePageUnknownError, RequestHumanTakeover
-from module.flow.engine import FlowEngine
+from module.flow.runtime import run_group
 from module.handler.info_handler import InfoHandler
 from module.logger import logger
 from module.ocr.ocr import Ocr
@@ -586,7 +586,7 @@ class UI(InfoHandler):
         """
         # Single-shot evaluation of the popup rule group (design D9): same
         # first-match-wins semantics as the original if-chain, now data.
-        return bool(FlowEngine(owner=self, device=self.device, config=self.config).run_group(popups_main(get_ship)))
+        return bool(run_group(popups_main(get_ship), owner=self))
 
     def handle_idle_page(self):
         """

@@ -1,9 +1,15 @@
-"""FlowEngine: the shared execution core for UI/business loops.
+"""FlowEngine: the shared execution core for UI/business loops and tasks.
 
 Implements the §3.0 evaluation cycle (skip_if → exit guard → group rules →
-state rules → timeout) over declarative Flow data. Builtin checks/actions
-resolve to ModuleBase/Device APIs so existing behavior maps 1:1; custom
-checks/actions are callable objects bound through `FlowCtx` (D13/D14).
+state rules → timeout) over declarative Flow data, plus task-level
+orchestration (`run_task`: sequential steps / if-branches / sub-flows).
+Builtin checks/actions resolve to ModuleBase/Device APIs so existing
+behavior maps 1:1; custom checks/actions are callable objects bound through
+`FlowCtx` (D13/D14).
+
+Owner is injected per `run`, never owned by the instance: a bot session
+holds ONE FlowEngine (see module/flow/runtime.py) and every flow/task in
+that session executes on it, so device/config/state live in one place.
 """
 
 from __future__ import annotations
@@ -11,7 +17,7 @@ from __future__ import annotations
 from typing import Any
 
 from module.base.timer import Timer
-from module.flow.model import FlowCtx, validate_flow
+from module.flow.model import FlowCtx, validate_flow, validate_task
 from module.logger import logger
 
 EXIT = "__exit__"
@@ -19,6 +25,14 @@ EXIT = "__exit__"
 
 class FlowTimeoutError(RuntimeError):
     """Raised by a state whose `on_timeout` mode is "raise"."""
+
+
+class _TaskStop(Exception):
+    """Internal control flow for a `stop` step inside a task (run_task)."""
+
+    def __init__(self, value: Any) -> None:
+        super().__init__(value)
+        self.value = value
 
 
 # Defaults for state timeout when on_timeout is a bare mode string.
@@ -57,12 +71,15 @@ class FlowEngine:
 
     def __init__(
         self,
-        owner: Any,
+        owner: Any = None,
         device: Any = None,
         config: Any = None,
         *,
         skip_first: bool = False,
     ) -> None:
+        # `owner` is a per-run binding, kept only as a fallback so direct
+        # construction (tests, legacy call sites) keeps working; a session
+        # runtime passes owner per run()/run_task() instead.
         self.owner = owner
         self.device: Any = (
             device if device is not None else getattr(owner, "device", None)
@@ -74,13 +91,24 @@ class FlowEngine:
 
     # ------------------------------------------------------------- running --
 
-    def run(self, flow: dict[str, Any], params: dict[str, Any] | None = None, entry: str | None = None) -> Any:
+    def run(
+        self,
+        flow: dict[str, Any],
+        params: dict[str, Any] | None = None,
+        entry: str | None = None,
+        *,
+        owner: Any = None,
+        skip_first: bool | None = None,
+    ) -> Any:
         errors = validate_flow(flow)
         if errors:
             raise ValueError(f"invalid flow {flow.get('name')!r}: " + "; ".join(errors))
 
         states = flow["states"]
-        ctx = FlowCtx(device=self.device, config=self.config, owner=self.owner, params=params or {})
+        owner = owner if owner is not None else self.owner
+        self._bind(owner)
+        ctx = FlowCtx(device=self.device, config=self.config, owner=owner, params=params or {})
+        eff_skip = self.skip_first if skip_first is None else skip_first
         groups: list[dict[str, Any]] = flow.get("groups", [])
         attempts: dict[int, Any] = {}  # rule-id -> {"spec", "count", "exceeded"}
         self._exit_timers.clear()
@@ -115,7 +143,7 @@ class FlowEngine:
         tick = 0
         while True:
             tick += 1
-            if not (self.skip_first and tick == 1):
+            if not (eff_skip and tick == 1):
                 self.device.screenshot()
 
             state = states[state_holder[0]]
@@ -186,7 +214,7 @@ class FlowEngine:
                     timeout_holder[0] = timeout_holder[0].reset()
                 if rule.get("reset_confirm"):
                     # original confirm_timer reset on every handled action
-                    timer = getattr(self.owner, rule["reset_confirm"], None)
+                    timer = getattr(ctx.owner, rule["reset_confirm"], None)
                     if timer is not None:
                         timer.reset()
                 if auto_done:
@@ -216,14 +244,16 @@ class FlowEngine:
                     return result[1]
                 timeout_holder[0] = timeout_holder[0].reset()
 
-    def run_group(self, group: list[dict[str, Any]], params: dict[str, Any] | None = None) -> bool:
+    def run_group(self, group: list[dict[str, Any]], params: dict[str, Any] | None = None, *, owner: Any = None) -> bool:
         """Single-shot group evaluation (original `ui_additional` semantics).
 
         One pass over the rules against the current image (no screenshot):
         the first rule that handles/executes wins and returns True, exactly
         like the original `if ...: return True` chain.
         """
-        ctx = FlowCtx(device=self.device, config=self.config, owner=self.owner, params=params or {})
+        owner = owner if owner is not None else self.owner
+        self._bind(owner)
+        ctx = FlowCtx(device=self.device, config=self.config, owner=owner, params=params or {})
         for rule in group:
             if not self._guard_ok(rule.get("guard"), ctx):
                 continue
@@ -242,6 +272,58 @@ class FlowEngine:
                 return True
         return False
 
+    # ------------------------------------------------------- task running --
+
+    def run_task(
+        self,
+        task: dict[str, Any],
+        params: dict[str, Any] | None = None,
+        *,
+        owner: Any = None,
+    ) -> Any:
+        """Run a task (ordered steps) against the runtime's device/config.
+
+        TaskSpec (see model.py): sequential steps of `call` / `flow` (sub-flow
+        with full loop semantics) / `if` branches / `stop` (terminate). This is
+        the data form of a legacy `run()` skeleton, so a scheduler hands the
+        SAME engine instance every task of a session.
+        """
+        errors = validate_task(task)
+        if errors:
+            raise ValueError(f"invalid task {task.get('name')!r}: " + "; ".join(errors))
+        owner = owner if owner is not None else self.owner
+        self._bind(owner)
+        ctx = FlowCtx(device=self.device, config=self.config, owner=owner, params=params or {})
+        self._log(f"task={task['name']} start")
+        try:
+            self._run_steps(task["steps"], ctx)
+        except _TaskStop as e:
+            self._log(f"task={task['name']} stop ✓")
+            return e.value
+        self._log(f"task={task['name']} done")
+        return None
+
+    def _run_steps(self, steps: list[dict[str, Any]], ctx: FlowCtx) -> None:
+        for idx, step in enumerate(steps):
+            if "stop" in step:
+                raise _TaskStop(step["stop"])
+            if "call" in step:
+                fn = step["call"]
+                self._log(f"task step={idx} call={getattr(fn, '__name__', fn)!r}")
+                fn(ctx, step.get("args") or {})
+                continue
+            if "flow" in step:
+                params = {**ctx.params, **(step.get("params") or {})}
+                self._log(f"task step={idx} flow={step['flow'].get('name', '?')}")
+                self.run(step["flow"], params=params, owner=ctx.owner)
+                continue
+            # "if" step: branch on a callable check, then/else are step lists
+            spec = step["if"]
+            branch = spec["then"] if spec["check"](ctx, spec.get("args") or {}) else spec.get("else")
+            if branch:
+                self._log(f"task step={idx} branch={'then' if branch is spec.get('then') else 'else'}")
+                self._run_steps(branch, ctx)
+
     # ------------------------------------------------------------- routing --
 
     def _route(self, result: Any) -> tuple[str, Any] | None:
@@ -255,6 +337,18 @@ class FlowEngine:
         return ("exit", result)
 
     # ------------------------------------------------------------- helpers --
+
+    def _bind(self, owner: Any) -> None:
+        """Bind device/config from the owner when created lazily (no args).
+
+        A session engine is constructed once with device/config; a lazily
+        created one (tests, direct use) picks them up from its first owner
+        and keeps them for the session.
+        """
+        if self.device is None and owner is not None:
+            self.device = getattr(owner, "device", None)
+        if self.config is None and owner is not None:
+            self.config = getattr(owner, "config", None)
 
     def _log(self, message: str) -> None:
         logger.info(f"[flow] {message}")
@@ -334,11 +428,11 @@ class FlowEngine:
         if "custom" in spec:
             return bool(spec["custom"](ctx, spec.get("args") or {}))
         if "capability" in spec:
-            return hasattr(self.owner, spec["capability"])
+            return hasattr(ctx.owner, spec["capability"])
         if "page" in spec:
             return self._check_page(spec["page"], spec.get("offset"), ctx)
         if "button" in spec:
-            return self.owner.appear(
+            return ctx.owner.appear(
                 spec["button"],
                 offset=spec.get("offset", 0),
                 interval=spec.get("interval", 0),
@@ -356,21 +450,21 @@ class FlowEngine:
             return any(self._check_page(p, offset, ctx) for p in page.get("any", []))
         pages = page if isinstance(page, (list, tuple)) else [page]
         for p in pages:
-            if hasattr(self.owner, "ui_page_appear"):
-                if self.owner.ui_page_appear(p, offset=offset if offset is not None else (30, 30)):
+            if hasattr(ctx.owner, "ui_page_appear"):
+                if ctx.owner.ui_page_appear(p, offset=offset if offset is not None else (30, 30)):
                     return True
-            elif self.owner.appear(p.check_button, offset=offset if offset is not None else (30, 30)):
+            elif ctx.owner.appear(p.check_button, offset=offset if offset is not None else (30, 30)):
                 return True
         return False
 
     def _check_template(self, spec: dict[str, Any], ctx: FlowCtx) -> bool:
         button = spec["template"]
         if spec.get("crop") is not None:
-            image = self.owner.image_crop(spec["crop"], copy=False)
+            image = ctx.owner.image_crop(spec["crop"], copy=False)
             if spec.get("pre"):
                 image = spec["pre"](image)
             return button.match(image, offset=spec.get("offset", 0), similarity=spec.get("similarity", 0.85))
-        return self.owner.match_template_color(
+        return ctx.owner.match_template_color(
             button,
             offset=spec.get("offset", (20, 20)),
             interval=spec.get("interval", 0),
@@ -380,10 +474,10 @@ class FlowEngine:
 
     def _check_color(self, spec: dict[str, Any], ctx: FlowCtx) -> bool:
         if "area" in spec:
-            return self.owner.image_color_count(
+            return ctx.owner.image_color_count(
                 spec["area"], color=spec["color"], threshold=spec.get("threshold", 221), count=spec.get("count", 50)
             )
-        return self.owner.image_color_count(
+        return ctx.owner.image_color_count(
             spec["button"], color=spec["color"], threshold=spec.get("threshold", 221), count=spec.get("count", 50)
         )
 
@@ -393,17 +487,17 @@ class FlowEngine:
         if spec is None:
             return None
         if "click" in spec:
-            self.owner.device.click(spec["click"], control_check=spec.get("control_check", True))
+            ctx.owner.device.click(spec["click"], control_check=spec.get("control_check", True))
             return None
         if "click_and" in spec:
             for b in spec["click_and"]:
-                self.owner.device.click(b)
+                ctx.owner.device.click(b)
             return None
         if "ensure_click" in spec:
             self._ensure_click(spec["ensure_click"], ctx)
             return None
         if "sleep" in spec:
-            self.owner.device.sleep(spec["sleep"])
+            ctx.owner.device.sleep(spec["sleep"])
             return None
         if "wait_appear" in spec:
             self._wait(spec["wait_appear"], expect=True, ctx=ctx)
@@ -424,7 +518,7 @@ class FlowEngine:
     def _reset_intervals(self, spec: Any, ctx: FlowCtx) -> None:
         if spec and spec.get("reset_interval"):
             for button in spec["reset_interval"]:
-                self.owner.interval_reset(button)
+                ctx.owner.interval_reset(button)
 
     def _ensure_click(self, spec: dict[str, Any], ctx: FlowCtx) -> None:
         """ui_click semantics: click until confirmed, with retry/confirm timers."""
@@ -447,7 +541,7 @@ class FlowEngine:
             if click_timer.reached():
                 appear_ok = bool(appear(ctx, {})) if callable(appear) else self._check({"button": appear}, ctx)
                 if appear_ok:
-                    self.owner.device.click(click_button)
+                    ctx.owner.device.click(click_button)
                     click_timer.reset()
             if additional is not None:
                 if bool(additional(ctx, {})) if callable(additional) else self._check(additional, ctx):

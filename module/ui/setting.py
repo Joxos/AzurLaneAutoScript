@@ -181,13 +181,11 @@ class Setting:
         Returns:
             bool: If success the set
         """
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         logger.info(f"Setting options {self.name}, {dict_to_kv(kwargs)}")
         return bool(
-            FlowEngine(owner=self.main, device=self.main.device, config=self.main.config).run(
-                _setting_flow(self, kwargs)
-            )
+            run_flow(_setting_flow(self, kwargs), owner=self.main)
         )
 
     def set(self, **kwargs):

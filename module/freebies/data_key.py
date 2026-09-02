@@ -46,11 +46,11 @@ class DataKey(UI):
             in: page_archives
             out: page_archives, DATA_KEY_COLLECTED
         """
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         logger.hr("Data Key Collect")
-        FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
-            _data_key_flow()
+        run_flow(
+            _data_key_flow(), owner=self, skip_first=skip_first_screenshot
         )
 
     def data_key_collect(self):

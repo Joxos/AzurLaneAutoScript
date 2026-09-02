@@ -243,9 +243,9 @@ class EnemySearchingHandler(InfoHandler):
         if not self.is_in_map():
             return False
 
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
-        FlowEngine(owner=self, device=self.device, config=self.config).run(_enemy_searching_flow(drop))
+        run_flow(_enemy_searching_flow(drop))
 
         return True
 
@@ -260,8 +260,8 @@ class EnemySearchingHandler(InfoHandler):
         if not self.is_in_map():
             return False
 
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
-        FlowEngine(owner=self, device=self.device, config=self.config).run(_no_enemy_searching_flow(drop))
+        run_flow(_no_enemy_searching_flow(drop))
 
         return True

@@ -201,11 +201,12 @@ class Scroll:
         if position >= 1 - self.edge_threshold:
             random_range = self.edge_add
 
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
-        return FlowEngine(
-            owner=main, device=main.device, config=main.config, skip_first=skip_first_screenshot
-        ).run(_scroll_set_flow(self, position, random_range, distance_check), params={"_dragged": 0})
+        return run_flow(
+            _scroll_set_flow(self, position, random_range, distance_check), owner=main,
+            skip_first=skip_first_screenshot, params={"_dragged": 0},
+        )
 
     def set_top(self, main, random_range=(-0.05, 0.05), skip_first_screenshot=True):
         return self.set(0.00, main=main, random_range=random_range, skip_first_screenshot=skip_first_screenshot)

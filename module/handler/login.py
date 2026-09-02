@@ -156,10 +156,10 @@ class LoginHandler(UI):
         self.device.click_record_clear()
         _flow_orientation_timer_reset(self)
 
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         return bool(
-            FlowEngine(owner=self, device=self.device, config=self.config).run(make_app_login())
+            run_flow(make_app_login())
         )
 
     _user_agreement_timer = Timer(1, count=2)

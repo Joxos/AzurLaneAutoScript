@@ -232,7 +232,7 @@ class Switch:
         Returns:
             bool: If clicked
         """
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         logger.info(f"{self.name} set to {state}")
         self.get_data(state)
@@ -241,9 +241,8 @@ class Switch:
         self.set_unknown_timer.reset()
         self.set_click_timer.clear()
         return bool(
-            FlowEngine(owner=main, device=main.device, config=main.config, skip_first=skip_first_screenshot).run(
-                _sw_set_flow(self, state), params={"_sw_changed": False}
-            )
+            run_flow(_sw_set_flow(self, state), owner=main, skip_first=skip_first_screenshot,
+                     params={"_sw_changed": False})
         )
 
     def wait(self, main, skip_first_screenshot=True):
@@ -257,11 +256,9 @@ class Switch:
         Returns:
             bool: If success
         """
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         self.wait_timeout.reset()
         return bool(
-            FlowEngine(owner=main, device=main.device, config=main.config, skip_first=skip_first_screenshot).run(
-                _sw_wait_flow(self)
-            )
+            run_flow(_sw_wait_flow(self), owner=main, skip_first=skip_first_screenshot)
         )

@@ -214,14 +214,15 @@ class MailWhite(UI):
             in: page_main_white or MAIL_MANAGE
             out: MAIL_BATCH_CLAIM
         """
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         logger.info("Mail enter")
         self.interval_clear([MAIL_MANAGE])
         self._mail_enter_timeout = None
         return bool(
-            FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
-                _mail_enter_flow(), params={"_mail_enter_result": False, "_mail_has_mail": False}
+            run_flow(
+                _mail_enter_flow(), owner=self, skip_first=skip_first_screenshot,
+                params={"_mail_enter_result": False, "_mail_has_mail": False},
             )
         )
 
@@ -231,7 +232,7 @@ class MailWhite(UI):
             in: Any page in page_mail
             out: page_main_white
         """
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         logger.info("Mail quit")
         self.interval_clear(
@@ -243,9 +244,7 @@ class MailWhite(UI):
             ]
         )
         self.popup_interval_clear()
-        FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
-            _mail_quit_flow()
-        )
+        run_flow(_mail_quit_flow(), owner=self, skip_first=skip_first_screenshot)
 
     def _handle_mail_reward(self):
         if self.appear(GET_ITEMS_1, offset=(30, 30), interval=3):
@@ -267,7 +266,7 @@ class MailWhite(UI):
         Returns:
             int: If success to claim
         """
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         self.handle_info_bar()
         self.interval_clear(
@@ -279,8 +278,8 @@ class MailWhite(UI):
         )
         self.popup_interval_clear()
 
-        FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
-            _mail_claim_flow(), params={"_mail_claimed": False}
+        run_flow(
+            _mail_claim_flow(), owner=self, skip_first=skip_first_screenshot, params={"_mail_claimed": False}
         )
 
         success = self.info_bar_count() > 0
@@ -293,14 +292,14 @@ class MailWhite(UI):
             in: MAIL_BATCH_DELETE
             out: MAIL_BATCH_DELETE
         """
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         self.handle_info_bar()
         self.interval_clear([MAIL_BATCH_DELETE])
         self.popup_interval_clear()
 
-        FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
-            _mail_delete_flow(), params={"_mail_deleted": False}
+        run_flow(
+            _mail_delete_flow(), owner=self, skip_first=skip_first_screenshot, params={"_mail_deleted": False}
         )
 
         # info_bar appears if mail success to delete and no mail deleted

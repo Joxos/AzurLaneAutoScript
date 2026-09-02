@@ -204,10 +204,10 @@ class AutoSearchHandler(EnemySearchingHandler):
         Returns:
             bool: whether the setting could be ensured (5 attempts before False)
         """
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
         return bool(
-            FlowEngine(owner=self, device=self.device, config=self.config).run(
+            run_flow(
                 make_auto_search_setting_ensure(setting)
             )
         )

@@ -43,9 +43,9 @@ class StrategyHandler(InfoHandler):
 
     def strategy_open(self, skip_first_screenshot=True):
         logger.info("Strategy open")
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
-        FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
+        run_flow(
             _make_wait_flow(
                 "strategy_open",
                 exit_check={"button": STRATEGY_OPENED, "offset": 200},
@@ -63,9 +63,9 @@ class StrategyHandler(InfoHandler):
 
     def strategy_close(self, skip_first_screenshot=True):
         logger.info("Strategy close")
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
-        FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
+        run_flow(
             _make_wait_flow(
                 "strategy_close",
                 exit_check={"not": {"button": STRATEGY_OPENED, "offset": 200}},
@@ -166,9 +166,9 @@ class StrategyHandler(InfoHandler):
             out: SUBMARINE_MOVE_CONFIRM
         """
         logger.info("Submarine move enter")
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
-        FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
+        run_flow(
             _make_wait_flow(
                 "submarine_move_enter",
                 exit_check={"button": SUBMARINE_MOVE_CONFIRM, "offset": (20, 20)},
@@ -186,9 +186,9 @@ class StrategyHandler(InfoHandler):
             out: STRATEGY_OPENED, SUBMARINE_MOVE_ENTER
         """
         logger.info("Submarine move confirm")
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
-        FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
+        run_flow(
             _make_wait_flow(
                 "submarine_move_confirm",
                 exit_check={"button": SUBMARINE_MOVE_ENTER, "offset": 200},
@@ -208,9 +208,9 @@ class StrategyHandler(InfoHandler):
             out: STRATEGY_OPENED, SUBMARINE_MOVE_ENTER
         """
         logger.info("Submarine move cancel")
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
-        FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
+        run_flow(
             _make_wait_flow(
                 "submarine_move_cancel",
                 exit_check={"button": SUBMARINE_MOVE_ENTER, "offset": 200},
@@ -247,9 +247,9 @@ class StrategyHandler(InfoHandler):
             out: MOB_MOVE_CANCEL
         """
         logger.info("Mob move enter")
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
-        FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
+        run_flow(
             _make_wait_flow(
                 "mob_move_enter",
                 exit_check={"button": MOB_MOVE_CANCEL, "offset": (20, 20)},
@@ -282,9 +282,9 @@ class StrategyHandler(InfoHandler):
             out: AIR_STRIKE_CONFIRM
         """
         logger.info("Air strike enter")
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
-        FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
+        run_flow(
             _make_wait_flow(
                 "air_strike_enter",
                 exit_check={"button": AIR_STRIKE_CONFIRM, "offset": (20, 20)},
@@ -302,9 +302,9 @@ class StrategyHandler(InfoHandler):
             out: STRATEGY_OPENED, AIR_STRIKE_ENTER
         """
         logger.info("Air strike cancel")
-        from module.flow.engine import FlowEngine
+        from module.flow.runtime import run_flow
 
-        FlowEngine(owner=self, device=self.device, config=self.config, skip_first=skip_first_screenshot).run(
+        run_flow(
             _make_wait_flow(
                 "air_strike_cancel",
                 exit_check={"button": AIR_STRIKE_ENTER, "offset": (150, 200)},

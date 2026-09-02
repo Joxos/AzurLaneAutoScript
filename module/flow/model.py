@@ -71,6 +71,84 @@ class FlowCtx:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Task (task-level orchestration, §3.1 T4 / roadmap P3):
+#
+# TaskSpec = {
+#   "name": str,
+#   "steps": [StepSpec...],            # executed in order
+# }
+# StepSpec = {"call": fn, "args": {...}}          # run a callable (arrows to ctx)
+#          | {"flow": FlowSpec, "params": {...}}  # run a sub-flow (full loop semantics)
+#          | {"if": {"check": fn, "args", "then": [StepSpec...], "else": [...]}}
+#          | {"stop": value}                      # terminate, return value
+#
+# Task flow is the data form of a legacy `run()` skeleton: sequence + branches
+# + nested loops, with zero strings (same D14 rules as FlowSpec).
+# ---------------------------------------------------------------------------
+
+
+def _validate_steps(steps: list[Any], errors: list[str], path: str = "steps") -> None:
+    if not isinstance(steps, list) or not steps:
+        errors.append(f"{path}: must be a non-empty list")
+        return
+    for idx, step in enumerate(steps):
+        where = f"{path}[{idx}]"
+        if not isinstance(step, dict):
+            errors.append(f"{where}: must be a dict")
+            continue
+        if "stop" in step:
+            if len(step) != 1:
+                errors.append(f"{where}: 'stop' cannot be combined with other keys")
+            continue
+        if "call" in step:
+            if "if" in step or "flow" in step:
+                errors.append(f"{where}: 'call' cannot be combined with 'if'/'flow'")
+            if not callable(step["call"]):
+                errors.append(f"{where}: call must be callable")
+            continue
+        if "flow" in step:
+            if "if" in step:
+                errors.append(f"{where}: 'flow' cannot be combined with 'if'")
+            sub = step["flow"]
+            if not isinstance(sub, dict) or not isinstance(sub.get("states"), dict):
+                errors.append(f"{where}: flow must be a FlowSpec with states")
+            else:
+                errors.extend(validate_flow(sub))
+            continue
+        if "if" in step:
+            spec = step["if"]
+            if not isinstance(spec, dict) or not callable(spec.get("check")):
+                errors.append(f"{where}: if.check must be callable")
+                continue
+            if not isinstance(spec.get("then"), (list, type(None))) or not isinstance(
+                spec.get("else"), (list, type(None))
+            ):
+                errors.append(f"{where}: if.then/else must be step lists")
+                continue
+            if spec.get("then"):
+                _validate_steps(spec["then"], errors, f"{where}.if.then")
+            if spec.get("else"):
+                _validate_steps(spec["else"], errors, f"{where}.if.else")
+            continue
+        errors.append(f"{where}: unknown step (need one of call/flow/if/stop): {sorted(step)}")
+
+
+def validate_task(task: dict[str, Any]) -> list[str]:
+    """Structural validation of a Task data dict.
+
+    Returns a list of errors (empty = valid). Mirrors validate_flow; symbol
+    existence is covered by pyright at import time.
+    """
+    errors: list[str] = []
+    if not isinstance(task, dict) or not task.get("name"):
+        errors.append("task.name: must be a non-empty string")
+    if not isinstance(task, dict):
+        return errors
+    _validate_steps(task.get("steps"), errors)
+    return errors
+
+
 def validate_flow(flow: dict[str, Any]) -> list[str]:
     """Structural validation of a Flow data dict.
 
