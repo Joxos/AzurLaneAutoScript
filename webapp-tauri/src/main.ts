@@ -5,6 +5,7 @@ import { mount } from "svelte";
 import App from "./App.svelte";
 import { loadI18n } from "./api/i18n.svelte";
 import { connectEvents, refreshStatus, status } from "./api/store.svelte";
+import { startWebviewProbe } from "./lib/webviewProbe";
 import { initRouter } from "./router.svelte";
 
 async function bootstrap() {
@@ -26,6 +27,8 @@ async function bootstrap() {
   initRouter();
   mount(App, { target: document.getElementById("app")! });
   connectEvents();
+  // PROBE: webview-side stutter instrumentation (temporary, see lib/webviewProbe.ts).
+  startWebviewProbe();
 }
 
 void bootstrap();

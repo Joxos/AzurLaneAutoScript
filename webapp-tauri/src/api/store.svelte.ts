@@ -1,4 +1,5 @@
 import { api } from "./client";
+import { postProbe } from "../lib/webviewProbe";
 import type { SchedulerSnapshot, SseLog, Status } from "./types";
 
 const BASE = import.meta.env.VITE_API_BASE ?? "";
@@ -57,9 +58,9 @@ export async function refreshStatus() {
 let es: EventSource | null = null;
 let reconnectTimer: number | undefined;
 
-// PROBE: temporary instrumentation (revert with the probe commit).
-// 30-second summary of SSE event volume / parse cost, to correlate whole-
-// machine stutter during heavy OCR with the log-streaming load.
+// PROBE: temporary instrumentation (remove with the webview probe, see
+// lib/webviewProbe.ts). 30-second summary of SSE event volume / parse cost,
+// to correlate whole-machine stutter with the log-streaming load.
 let probeSince = performance.now();
 let probeEvents = 0;
 let probeBytes = 0;
@@ -72,9 +73,10 @@ function probeSse(kind: string, bytes: number, started: number) {
   const now = performance.now();
   if (now - probeSince >= 30000) {
     const secs = (now - probeSince) / 1000;
-    console.warn(
-      `[PROBE][SSE] ${kind}: ${probeEvents} events, ${(probeBytes / 1024).toFixed(1)}KB, maxParseMs=${probeMaxMs.toFixed(1)}, ${(probeEvents / secs).toFixed(1)}/s`,
-    );
+    const line =
+      `[PROBE][SSE] ${kind}: ${probeEvents} events, ${(probeBytes / 1024).toFixed(1)}KB, maxParseMs=${probeMaxMs.toFixed(1)}, ${(probeEvents / secs).toFixed(1)}/s`;
+    console.warn(line);
+    postProbe(line);
     probeEvents = 0;
     probeBytes = 0;
     probeMaxMs = 0;

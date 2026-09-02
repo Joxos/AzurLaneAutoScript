@@ -1,5 +1,6 @@
 <script lang="ts">
 import { ansiToHtml } from "../lib/ansi";
+import { postProbe } from "../lib/webviewProbe";
 
 interface Props {
   lines: string[];
@@ -45,9 +46,9 @@ function rebuild() {
   }
 }
 
-// PROBE: temporary instrumentation (revert with the probe commit).
-// 30-second summary of DOM-render cost per SSE batch, to correlate whole-
-// machine stutter during heavy OCR with log-view layout/insert work.
+// PROBE: temporary instrumentation (remove with the webview probe, see
+// lib/webviewProbe.ts). 30-second summary of DOM-render cost per SSE batch,
+// to correlate whole-machine stutter with log-view layout/insert work.
 let probeSince = performance.now();
 let probeAppends = 0;
 let probeLines = 0;
@@ -60,9 +61,10 @@ function probeRender(ms: number, linesDelta: number) {
   if (ms > probeMaxMs) probeMaxMs = ms;
   const now = performance.now();
   if (now - probeSince >= 30000) {
-    console.warn(
-      `[PROBE][LogView] ${probeAppends} appends, ${probeLines} lines, avg=${(probeTotalMs / probeAppends).toFixed(2)}ms, max=${probeMaxMs.toFixed(1)}ms`,
-    );
+    const line =
+      `[PROBE][LogView] ${probeAppends} appends, ${probeLines} lines, avg=${(probeTotalMs / probeAppends).toFixed(2)}ms, max=${probeMaxMs.toFixed(1)}ms`;
+    console.warn(line);
+    postProbe(line);
     probeAppends = 0;
     probeLines = 0;
     probeTotalMs = 0;
