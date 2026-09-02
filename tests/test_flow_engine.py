@@ -16,6 +16,17 @@ from module.flow.engine import FlowEngine, FlowTimeoutError
 from module.flow.model import FlowCtx, validate_flow
 
 
+class FakeTimer:
+    def __init__(self, *a, **k):
+        pass
+
+    def reached(self):
+        return False
+
+    def reset(self):
+        return self
+
+
 class FakeDevice:
     def __init__(self):
         self.calls: list[tuple] = []
@@ -38,6 +49,9 @@ class FakeDevice:
     def click_record_check(self):
         self.calls.append(("record_check",))
 
+    def get_orientation(self):
+        self.calls.append(("get_orientation",))
+
 
 class ScriptedOwner:
     """Scripts per-tick appearance: plan[i] = {"present": {names...}}."""
@@ -46,6 +60,7 @@ class ScriptedOwner:
         self.device = device
         self.plan = plan
         self.config = SimpleNamespace(SERVER="cn")
+        self._flow_orientation_timer = FakeTimer()
 
     def _state(self) -> dict:
         return self.plan[min(self.device.tick - 1, len(self.plan) - 1)]
@@ -277,13 +292,33 @@ def test_skip_if_skips_frame():
     assert checks == [1, 2, 3, 4, 5]
 
 
+def test_run_group_single_shot_semantics():
+    device = FakeDevice()
+    owner = ScriptedOwner(device, [{"present": ("GAME_TIPS",)}] * 5)
+    seen = []
+
+    def popup(ctx, args=None):
+        seen.append("popup")
+        return False
+
+    group = [
+        {"action": {"call_if": popup}},
+        {"check": {"button": "GAME_TIPS", "interval": 2}, "action": {"click": "GAME_TIPS"}},
+    ]
+    # one pass, no screenshot; first handled rule wins
+    result = FlowEngine(owner=owner, device=device).run_group(group)
+    assert result is True
+    assert seen == ["popup"]
+    assert device.tick == 0  # run_group never screenshots
+
+
 # ---------------------------------------------------------------------------
 # samples: app_login + auto_search_setting_ensure
 # ---------------------------------------------------------------------------
 
 
 def test_app_login_flow_valid_and_dry_run():
-    from module.handler.flows.app_login import make_app_login
+    from module.handler.login import make_app_login
 
     flow = make_app_login(get_ship=False)
     assert validate_flow(flow) == []
@@ -301,7 +336,7 @@ def test_app_login_flow_valid_and_dry_run():
 
 
 def test_app_login_timeout_raises_without_main():
-    from module.handler.flows.app_login import make_app_login
+    from module.handler.login import make_app_login
 
     flow = make_app_login()
     device = FakeDevice()
@@ -312,9 +347,9 @@ def test_app_login_timeout_raises_without_main():
 
 
 def test_popups_group_valid_and_structure():
-    from module.ui.flows.popups import make_popups_main
+    from module.ui.ui import popups_main
 
-    group = make_popups_main(get_ship=True)
+    group = popups_main(get_ship=True)
     assert group
     assert isinstance(group, list)
     # the group is a list of rule dicts with either check or call_if
@@ -323,7 +358,7 @@ def test_popups_group_valid_and_structure():
 
 
 def test_auto_search_setting_ensure_exits_false_after_attempts():
-    from module.handler.flows.auto_search_ensure import make_auto_search_setting_ensure
+    from module.handler.auto_search import make_auto_search_setting_ensure
 
     device = FakeDevice()
 
@@ -340,8 +375,7 @@ def test_auto_search_setting_ensure_exits_false_after_attempts():
 
 
 def test_auto_search_setting_ensure_exits_true_when_active():
-    from module.handler.auto_search import dic_setting_name_to_index
-    from module.handler.flows.auto_search_ensure import make_auto_search_setting_ensure
+    from module.handler.auto_search import dic_setting_name_to_index, make_auto_search_setting_ensure
 
     setting = "fleet1_mob_fleet2_boss"
     target = dic_setting_name_to_index[setting]

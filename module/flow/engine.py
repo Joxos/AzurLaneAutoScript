@@ -173,6 +173,30 @@ class FlowEngine:
                     return result
                 timeout_holder[0] = timeout_holder[0].reset()
 
+    def run_group(self, group: list[dict[str, Any]], params: dict[str, Any] | None = None) -> bool:
+        """Single-shot group evaluation (original `ui_additional` semantics).
+
+        One pass over the rules against the current image (no screenshot):
+        the first rule that handles/executes wins and returns True, exactly
+        like the original `if ...: return True` chain.
+        """
+        ctx = FlowCtx(device=self.device, config=self.config, owner=self.owner, params=params or {})
+        for rule in group:
+            if not self._guard_ok(rule.get("guard"), ctx):
+                continue
+            action = rule.get("action")
+            if action and "call_if" in action:
+                if action["call_if"](ctx, action.get("args") or {}):
+                    self._reset_intervals(action, ctx)
+                    return True
+                continue
+            if rule.get("check") is None or self._check(rule.get("check"), ctx):
+                if action:
+                    self._action(action, ctx)
+                    self._reset_intervals(action, ctx)
+                return True
+        return False
+
     # ------------------------------------------------------------- routing --
 
     def _route(self, result: Any) -> tuple[str, Any] | None:

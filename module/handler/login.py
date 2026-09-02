@@ -1,14 +1,132 @@
 
-import module.config.server as server
+from typing import Any
+
 from module.base.timer import Timer
+from module.flow.guards import server_eq
 from module.handler.assets import *  # noqa: F403  (data-bundle star import)
 from module.logger import logger
 from module.map.assets import *  # noqa: F403  (data-bundle star import)
 from module.ui.assets import *  # noqa: F403  (data-bundle star import)
+from module.ui.page import page_main
 from module.ui.ui import UI
+
+# ---------------------------------------------------------------------------
+# APP_LOGIN flow data + helpers (design §3.4-A; replaces the `while 1 + if..continue`
+# loop transcribed from login.py:31-94). Custom helpers are 1-3 line wrappers
+# over the original handler methods via ctx.owner.
+# ---------------------------------------------------------------------------
+
+
+def _orientation_check(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    """Original L33-36: watch device rotation every 5s during login."""
+    timer: Timer = ctx.owner._flow_orientation_timer
+    if timer.reached():
+        ctx.owner.device.get_orientation()
+        timer.reset()
+    return False  # never handled: always falls through
+
+
+def _click_with_record(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    """Original L54-59: ANDROID_NO_RESPOND -> record + verify + click."""
+    button = (args or {}).get("button")
+    ctx.owner.device.click_record_add(button)
+    ctx.owner.device.click_record_check()
+    ctx.owner.device.click(button, control_check=False)
+    return True
+
+
+def _cn_agreement_present(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    """Original L102-118 detection: blue confirm button on the right half."""
+    return (
+        ctx.owner.image_color_button(
+            area=(640, 360, 1280, 720), color=(78, 189, 234), color_threshold=245, encourage=25,
+            name="AGREEMENT_CONFIRM",
+        )
+        is not None
+    )
+
+
+def _handle_cn_user_agreement(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    return ctx.owner.handle_cn_user_agreement()
+
+
+def _popup_confirm(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    return ctx.owner.handle_popup_confirm(name=(args or {}).get("name", ""))
+
+
+def _urgent_commission(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    return ctx.owner.handle_urgent_commission()
+
+
+def _login_main_popups(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    return ctx.owner.ui_page_main_popups(get_ship=(args or {}).get("get_ship", True))
+
+
+def make_app_login(get_ship: bool = True) -> dict[str, Any]:
+    """APP_LOGIN: transcribed from the original `_handle_app_login` loop (L31-94)."""
+    return {
+        "name": "app_login",
+        "entry": "login",
+        "states": {
+            "login": {
+                "exit": {  # original L41-46: is_in_main + confirm_timer
+                    "check": {"page": page_main},
+                    "confirm": {"seconds": 1.5, "count": 4},
+                    "on_success": {"exit": True},
+                },
+                "rules": [
+                    # L33-36: orientation every 5s (never handles, falls through)
+                    {"action": {"call_if": _orientation_check}},
+                    # L49-53: match template color, click, do not short-circuit
+                    {"check": {"template": LOGIN_CHECK, "offset": (30, 30), "interval": 5},
+                     "action": {"click": LOGIN_CHECK}, "stop": False},
+                    # L54-59: ANDROID_NO_RESPOND -> record + click
+                    {"check": {"button": ANDROID_NO_RESPOND, "offset": (30, 30), "interval": 5},
+                     "action": {"call": _click_with_record, "args": {"button": ANDROID_NO_RESPOND}}},
+                    {"check": {"button": LOGIN_ANNOUNCE, "offset": (30, 30), "interval": 5},
+                     "action": {"click": LOGIN_ANNOUNCE}},
+                    {"check": {"button": LOGIN_ANNOUNCE_2, "offset": (30, 30), "interval": 5},
+                     "action": {"click": LOGIN_ANNOUNCE_2}},
+                    # L64-66: event list -> back arrow
+                    {"check": {"button": EVENT_LIST_CHECK, "offset": (30, 30), "interval": 5},
+                     "action": {"click_and": [BACK_ARROW]}},
+                    # L67-71: maintenance/update popups
+                    {"check": {"button": MAINTENANCE_ANNOUNCE, "offset": (30, 30), "interval": 5},
+                     "action": {"click": MAINTENANCE_ANNOUNCE}},
+                    {"check": {"button": LOGIN_GAME_UPDATE, "offset": (30, 30), "interval": 5},
+                     "action": {"click": LOGIN_GAME_UPDATE}},
+                    # L72-74: cn user agreement (wrapper keeps original method & timer)
+                    {"guard": server_eq("cn"),
+                     "check": {"custom": _cn_agreement_present},
+                     "action": {"call": _handle_cn_user_agreement}},
+                    # L76-81: player-return popups
+                    {"check": {"button": LOGIN_RETURN_SIGN, "offset": (30, 30), "interval": 5},
+                     "action": {"click": LOGIN_RETURN_SIGN}},
+                    {"check": {"button": LOGIN_RETURN_INFO, "offset": (30, 30), "interval": 5},
+                     "action": {"click": LOGIN_RETURN_INFO}},
+                    {"check": {"button": AVATAR_EXPIRED, "offset": (30, 30), "interval": 5},
+                     "action": {"click": AVATAR_EXPIRED}},
+                    # L83-86: generic confirm popup + urgent commission (hot-fix guard inside)
+                    # call_if = original `if self.handle_popup_confirm(...): continue` semantics
+                    {"action": {"call_if": _popup_confirm, "args": {"name": "LOGIN"}}},
+                    {"action": {"call_if": _urgent_commission}},
+                    # L88-89: page_main popups -> handled means login done, exit True
+                    {"action": {"call_if": _login_main_popups, "args": {"get_ship": get_ship}},
+                     "then": {"exit": True}},
+                    # L91-92: last-resort GOTO_MAIN
+                    {"check": {"button": GOTO_MAIN, "offset": (30, 30), "interval": 5},
+                     "action": {"click": GOTO_MAIN}},
+                ],
+                # original while-1 had no timeout; engine guard default (safe ceiling)
+                "on_timeout": {"seconds": 120, "mode": "raise"},
+            },
+        },
+    }
 
 
 class LoginHandler(UI):
+    _flow_orientation_timer = Timer(5)
+
     def _handle_app_login(self):
         """
         Pages:
@@ -22,76 +140,15 @@ class LoginHandler(UI):
         """
         logger.hr("App login")
 
-        confirm_timer = Timer(1.5, count=4).start()
-        orientation_timer = Timer(5)
-        login_success = False
         self.device.stuck_record_clear()
         self.device.click_record_clear()
+        _flow_orientation_timer_reset(self)
 
-        while 1:
-            # Watch device rotation
-            if not login_success and orientation_timer.reached():
-                # Screen may rotate after starting an app
-                self.device.get_orientation()
-                orientation_timer.reset()
+        from module.flow.engine import FlowEngine
 
-            self.device.screenshot()
-
-            # End
-            if self.is_in_main():
-                if confirm_timer.reached():
-                    logger.info("Login to main confirm")
-                    break
-            else:
-                confirm_timer.reset()
-
-            # Login
-            if self.match_template_color(LOGIN_CHECK, offset=(30, 30), interval=5):
-                self.device.click(LOGIN_CHECK)
-                if not login_success:
-                    logger.info("Login success")
-                    login_success = True
-            if self.appear(ANDROID_NO_RESPOND, offset=(30, 30), interval=5):
-                logger.warning("Emulator no respond")
-                self.device.click_record_add(ANDROID_NO_RESPOND)
-                self.device.click_record_check()
-                self.device.click(ANDROID_NO_RESPOND, control_check=False)
-                continue
-            if self.appear_then_click(LOGIN_ANNOUNCE, offset=(30, 30), interval=5):
-                continue
-            if self.appear_then_click(LOGIN_ANNOUNCE_2, offset=(30, 30), interval=5):
-                continue
-            if self.appear(EVENT_LIST_CHECK, offset=(30, 30), interval=5):
-                self.device.click(BACK_ARROW)
-                continue
-            # Updates and maintenance
-            if self.appear_then_click(MAINTENANCE_ANNOUNCE, offset=(30, 30), interval=5):
-                continue
-            if self.appear_then_click(LOGIN_GAME_UPDATE, offset=(30, 30), interval=5):
-                continue
-            if server.server == "cn" and not login_success:
-                if self.handle_cn_user_agreement():
-                    continue
-            # Player return
-            if self.appear_then_click(LOGIN_RETURN_SIGN, offset=(30, 30), interval=5):
-                continue
-            if self.appear_then_click(LOGIN_RETURN_INFO, offset=(30, 30), interval=5):
-                continue
-            if self.appear_then_click(AVATAR_EXPIRED, offset=(30, 30), interval=5):
-                continue
-            # Popups
-            if self.handle_popup_confirm("LOGIN"):
-                continue
-            if self.handle_urgent_commission():
-                continue
-            # Popups appear at page_main
-            if self.ui_page_main_popups(get_ship=login_success):
-                return True
-            # Always goto page_main
-            if self.appear_then_click(GOTO_MAIN, offset=(30, 30), interval=5):
-                continue
-
-        return True
+        return bool(
+            FlowEngine(owner=self, device=self.device, config=self.config).run(make_app_login())
+        )
 
     _user_agreement_timer = Timer(1, count=2)
 
@@ -146,18 +203,6 @@ class LoginHandler(UI):
         finally:
             self.device.screenshot_interval_set()
 
-    def handle_app_login_flow(self, get_ship: bool = True) -> bool:
-        """P1 pilot: the app-login loop as flow data (design §3.4-A).
-
-        The legacy `_handle_app_login` stays in place for the equivalence
-        harness and as fallback; run both against recorded screenshots
-        before switching callers (design §3.6-P1-a).
-        """
-        from module.flow.engine import FlowEngine
-        from module.handler.flows.app_login import make_app_login
-
-        return bool(FlowEngine(owner=self, device=self.device, config=self.config).run(make_app_login(get_ship)))
-
     def app_stop(self):
         logger.hr("App stop")
         self.device.app_stop()
@@ -173,3 +218,8 @@ class LoginHandler(UI):
         self.device.app_start()
         self.handle_app_login()
         self.config.task_delay(server_update=True)
+
+
+def _flow_orientation_timer_reset(owner: LoginHandler) -> None:
+    """Start the flow's orientation timer fresh per login attempt."""
+    owner._flow_orientation_timer.reset()

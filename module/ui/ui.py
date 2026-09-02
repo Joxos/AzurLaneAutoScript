@@ -1,7 +1,10 @@
+from typing import Any
+
 from module.base.button import Button
 from module.base.decorator import run_once
 from module.base.timer import Timer
 from module.exception import GameNotRunningError, GamePageUnknownError, RequestHumanTakeover
+from module.flow.engine import FlowEngine
 from module.handler.info_handler import InfoHandler
 from module.logger import logger
 from module.ocr.ocr import Ocr
@@ -39,6 +42,103 @@ from module.ui.assets_bridge import (
 )
 from module.ui.page import Page, page_academy, page_campaign, page_event, page_main, page_main_white, page_sp
 from module.ui_white.assets import *  # noqa: F403  (data-bundle star import)
+
+# ---------------------------------------------------------------------------
+# Popup rule group (design §3.4-B / D9): the full ui_additional rule list as
+# flow data. `popups_main(get_ship)` is injected into any flow via groups, or
+# evaluated single-shot by ui_additional() below (original semantics).
+# ---------------------------------------------------------------------------
+
+
+def _ui_page_os_popups(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    return ctx.owner.ui_page_os_popups()
+
+
+def _ui_page_main_popups(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    return ctx.owner.ui_page_main_popups(get_ship=(args or {}).get("get_ship", True))
+
+
+def _story_skip(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    return ctx.owner.handle_story_skip()
+
+
+def _withdraw_double_check(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    """Original L543-561: WITHDRAW double check with the 2s client-bug wait."""
+    owner = ctx.owner
+    if not owner.appear(WITHDRAW, offset=(30, 30), interval=3):
+        return False
+    owner.device.sleep(2)
+    owner.device.screenshot()
+    if owner.appear_then_click(WITHDRAW, offset=(30, 30)):
+        owner.interval_reset(WITHDRAW)
+        return True
+    owner.interval_reset(WITHDRAW)
+    return False
+
+
+def _idle_page(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    return ctx.owner.handle_idle_page()
+
+
+def popups_main(get_ship: bool = True) -> list[dict[str, Any]]:
+    """The popup rule group (priority order = original ui_additional)."""
+    return [
+        # L486-487: page_os popups first (RESET_FLEET_PREPARATION >= 5 raises inside)
+        {"action": {"call_if": _ui_page_os_popups}},
+        # L490-493
+        {"action": {"call_if": _popup_confirm, "args": {"name": "UI_ADDITIONAL"}}},
+        {"action": {"call_if": _urgent_commission}},
+        # L496-497
+        {"action": {"call_if": _ui_page_main_popups, "args": {"get_ship": get_ship}}},
+        # L500-501
+        {"action": {"call_if": _story_skip}},
+        # L506-509: game tips -> GOTO_MAIN
+        {"check": {"button": GAME_TIPS, "interval": 2}, "action": {"click_and": [GOTO_MAIN]}},
+        # L512-518: dorm popups
+        {"check": {"button": DORM_INFO, "interval": 3, "similarity": 0.75},
+         "action": {"click": DORM_INFO}},
+        {"check": {"button": DORM_FEED_CANCEL, "interval": 3}, "action": {"click": DORM_FEED_CANCEL}},
+        {"check": {"button": DORM_TROPHY_CONFIRM, "interval": 3}, "action": {"click": DORM_TROPHY_CONFIRM}},
+        # L521-528: meowfficer popups (both reset GET_SHIP interval after click)
+        {"check": {"button": MEOWFFICER_INFO, "interval": 3},
+         "action": {"click": MEOWFFICER_INFO, "reset_interval": [GET_SHIP]}},
+        {"check": {"button": MEOWFFICER_BUY, "interval": 3},
+         "action": {"click_and": [BACK_ARROW], "reset_interval": [GET_SHIP]}},
+        # L531-538: campaign preparation (any of the four) -> cancel
+        {"check": {"or": [{"button": MAP_PREPARATION, "interval": 3},
+                          {"button": MAP_PREPARATION_HARD, "interval": 3},
+                          {"button": FLEET_PREPARATION, "interval": 3},
+                          {"button": RAID_FLEET_PREPARATION, "interval": 3}]},
+         "action": {"click": MAP_PREPARATION_CANCEL}},
+        # L539-542: auto-search exit/reward popups
+        {"check": {"button": AUTO_SEARCH_MENU_EXIT, "offset": (200, 30), "interval": 3},
+         "action": {"click": AUTO_SEARCH_MENU_EXIT}},
+        {"check": {"button": AUTO_SEARCH_REWARD, "offset": (50, 50), "interval": 3},
+         "action": {"click": AUTO_SEARCH_REWARD}},
+        # L543-561: WITHDRAW client-bug double check (wrapper keeps its 2s wait)
+        {"action": {"call_if": _withdraw_double_check}},
+        # L563-566: login/maintenance popups
+        {"check": {"button": LOGIN_CHECK, "offset": (30, 30), "interval": 3},
+         "action": {"click": LOGIN_CHECK}},
+        {"check": {"button": MAINTENANCE_ANNOUNCE, "offset": (30, 30), "interval": 3},
+         "action": {"click": MAINTENANCE_ANNOUNCE}},
+        # L569-572: mistaken click into exercise preparation -> GOTO_MAIN
+        {"check": {"button": EXERCISE_PREPARATION, "interval": 3},
+         "action": {"click_and": [GOTO_MAIN]}},
+        # L592-594: idle page
+        {"action": {"call_if": _idle_page}},
+        # L596-599: white-menu switch
+        {"check": {"button": MAIN_GOTO_MEMORIES_WHITE, "interval": 3},
+         "action": {"click": MAIN_TAB_SWITCH_WHITE}},
+    ]
+
+
+def _popup_confirm(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    return ctx.owner.handle_popup_confirm(name=(args or {}).get("name", ""))
+
+
+def _urgent_commission(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    return ctx.owner.handle_urgent_commission()
 
 
 class UI(InfoHandler):
@@ -480,125 +580,9 @@ class UI(InfoHandler):
         Args:
             get_ship:
         """
-        # Popups appear at page_os
-        # Has a popup_confirm variant
-        # so must take precedence
-        if self.ui_page_os_popups():
-            return True
-
-        # Research popup, lost connection popup
-        if self.handle_popup_confirm("UI_ADDITIONAL"):
-            return True
-        if self.handle_urgent_commission():
-            return True
-
-        # Popups appear at page_main, page_reward
-        if self.ui_page_main_popups(get_ship=get_ship):
-            return True
-
-        # Story
-        if self.handle_story_skip():
-            return True
-
-        # Game tips
-        # Event commission in Vacation Lane.
-        # 2025.05.29 game tips that infos skin feature when you enter dock
-        if self.appear(GAME_TIPS, offset=(30, 30), interval=2):
-            logger.info(f"UI additional: {GAME_TIPS} -> {GOTO_MAIN}")
-            self.device.click(GOTO_MAIN)
-            return True
-
-        # Dorm popup
-        if self.appear(DORM_INFO, offset=(30, 30), similarity=0.75, interval=3):
-            self.device.click(DORM_INFO)
-            return True
-        if self.appear_then_click(DORM_FEED_CANCEL, offset=(30, 30), interval=3):
-            return True
-        if self.appear_then_click(DORM_TROPHY_CONFIRM, offset=(30, 30), interval=3):
-            return True
-
-        # Meowfficer popup
-        if self.appear_then_click(MEOWFFICER_INFO, offset=(30, 30), interval=3):
-            self.interval_reset(GET_SHIP)
-            return True
-        if self.appear(MEOWFFICER_BUY, offset=(30, 30), interval=3):
-            logger.info(f"UI additional: {MEOWFFICER_BUY} -> {BACK_ARROW}")
-            self.device.click(BACK_ARROW)
-            self.interval_reset(GET_SHIP)
-            return True
-
-        # Campaign preparation
-        if (
-            self.appear(MAP_PREPARATION, offset=(30, 30), interval=3)
-            or self.appear(MAP_PREPARATION_HARD, offset=(30, 30), interval=3)
-            or self.appear(FLEET_PREPARATION, offset=(20, 50), interval=3)
-            or self.appear(RAID_FLEET_PREPARATION, offset=(30, 30), interval=3)
-        ):
-            self.device.click(MAP_PREPARATION_CANCEL)
-            return True
-        if self.appear_then_click(AUTO_SEARCH_MENU_EXIT, offset=(200, 30), interval=3):
-            return True
-        if self.appear_then_click(AUTO_SEARCH_REWARD, offset=(50, 50), interval=3):
-            return True
-        if self.appear(WITHDRAW, offset=(30, 30), interval=3):
-            # Poor wait here, to handle a game client bug after the game patch in 2022-04-07
-            # To re-produce this game bug (100% success):
-            # - Enter any stage, 12-4 for example
-            # - Stop and restart game
-            # - Run task `Main` in Alas
-            # - Alas switches to page_campaign and retreat from an existing stage
-            # - Game client freezes at page_campaign W12, clicking anywhere on the screen doesn't get responses
-            # - Restart game client again fix the issue
-            logger.info("WITHDRAW button found, wait until map loaded to prevent bugs in game client")
-            self.device.sleep(2)
-            self.device.screenshot()
-            if self.appear_then_click(WITHDRAW, offset=(30, 30)):
-                self.interval_reset(WITHDRAW)
-                return True
-            else:
-                logger.warning("WITHDRAW button does not exist anymore")
-                self.interval_reset(WITHDRAW)
-
-        # Login
-        if self.appear_then_click(LOGIN_CHECK, offset=(30, 30), interval=3):
-            return True
-        if self.appear_then_click(MAINTENANCE_ANNOUNCE, offset=(30, 30), interval=3):
-            return True
-
-        # Mistaken click
-        if self.appear(EXERCISE_PREPARATION, interval=3):
-            logger.info(f"UI additional: {EXERCISE_PREPARATION} -> {GOTO_MAIN}")
-            self.device.click(GOTO_MAIN)
-            return True
-
-        # RPG event (raid_20240328)
-        # if self.appear_then_click(RPG_STATUS_POPUP, offset=(30, 30), interval=3):
-        #     return True
-        # Hospital event (20250327)
-        # if self.appear_then_click(HOSIPITAL_CLUE_CHECK, offset=(20, 20), interval=2):
-        #     return True
-        # if self.appear_then_click(HOSPITAL_BATTLE_EXIT, offset=(20, 20), interval=2):
-        #     return True
-        # Neon city (coalition_20250626)
-        # FASHION (coalition_20260122) reuse NEONCITY
-        # if self.appear(NEONCITY_FLEET_PREPARATION, offset=(20, 20), interval=3):
-        #     logger.info(f'{NEONCITY_FLEET_PREPARATION} -> {NEONCITY_PREPARATION_EXIT}')
-        #     self.device.click(NEONCITY_PREPARATION_EXIT)
-        #     return True
-        # DATE A LANE (coalition_20251120)
-        # if self.appear_then_click(DAL_DIFFICULTY_EXIT, offset=(20, 20), interval=3):
-        #     return True
-
-        # Idle page
-        if self.handle_idle_page():
-            return True
-        # Switch on ui_white, no offset just color match
-        if self.appear(MAIN_GOTO_MEMORIES_WHITE, interval=3):
-            logger.info(f"UI additional: {MAIN_GOTO_MEMORIES_WHITE} -> {MAIN_TAB_SWITCH_WHITE}")
-            self.device.click(MAIN_TAB_SWITCH_WHITE)
-            return True
-
-        return False
+        # Single-shot evaluation of the popup rule group (design D9): same
+        # first-match-wins semantics as the original if-chain, now data.
+        return bool(FlowEngine(owner=self, device=self.device, config=self.config).run_group(popups_main(get_ship)))
 
     def handle_idle_page(self):
         """
