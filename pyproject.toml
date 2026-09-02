@@ -43,7 +43,25 @@ dependencies = [
     "websockets>=12",
     "fastapi>=0.135",
     "decorator>=5.3.1",
+    # CLI (unified entry: alas run/build/doctor, see module/cli)
+    "typer>=0.12",
+    # Desktop window (`alas run desktop`; PyInstaller sidecar bundle includes it)
+    "pywebview>=5.1,<7",
 ]
+
+[project.scripts]
+alas = "module.cli:main"
+
+# Minimum build config so uv can install the project (editable) and expose
+# [project.scripts] alas; the wheel itself is never published.
+# flit_core is dependency-free, unlike setuptools/hatchling backends whose
+# packaging pin conflicts with uiautomator2==2.16.17 (packaging<21.dev0).
+[build-system]
+requires = ["flit_core>=3.9,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.flit.module]
+name = "module"
 
 [dependency-groups]
 dev = [
@@ -53,6 +71,12 @@ dev = [
     "rope>=1.1.1",
     "ruff>=0.5",
 ]
+
+[tool.uv]
+# Install the project itself (editable) so `[project.scripts] alas` exists in
+# the venv; without this uv skips entry points ("project is not packaged") and
+# `uv run alas` fails with "not found".
+package = true
 
 [tool.ruff]
 target-version = "py313"

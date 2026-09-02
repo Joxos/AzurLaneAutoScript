@@ -18,7 +18,7 @@ class State:
     _init = False
     _clearup = False
 
-    restart_event: threading.Event = None
+    restart_event: threading.Event | None = None
     manager: SyncManager = None
     theme: str = "dark"
 

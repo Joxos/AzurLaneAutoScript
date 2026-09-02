@@ -1,114 +1,20 @@
-import multiprocessing
-import threading
-from multiprocessing import Event, Process
+"""Backward-compatible shim: `python gui.py` ≡ `alas run web`.
 
-from module.logger import logger
-from module.webui.setting import State
+The real implementation lives in module/cli (see module/cli/run.py); this
+file only translates legacy command-line invocations. When the first
+argument is an `alas` subcommand it is passed through, so the frozen
+sidecar also supports `alas-backend.exe run desktop` (NSIS shortcut).
+"""
 
+import sys
 
-def func(ev: threading.Event):
-    import argparse
-    import asyncio
-    import sys
-
-    import uvicorn
-
-    if sys.platform.startswith("win"):
-        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-
-    State.restart_event = ev
-
-    parser = argparse.ArgumentParser(description="Alas web service")
-    parser.add_argument(
-        "--host",
-        type=str,
-        help="Host to listen. Default to WebuiHost in deploy setting",
-    )
-    parser.add_argument(
-        "-p",
-        "--port",
-        type=int,
-        help="Port to listen. Default to WebuiPort in deploy setting",
-    )
-    parser.add_argument("-k", "--key", type=str, help="Password of alas. No password by default")
-    parser.add_argument("--ssl-key", dest="ssl_key", type=str, help="SSL key file path for HTTPS support")
-    parser.add_argument("--ssl-cert", type=str, help="SSL certificate file path for HTTPS support")
-    parser.add_argument(
-        "--run",
-        nargs="+",
-        type=str,
-        help="Run alas by config names on startup",
-    )
-    args, _ = parser.parse_known_args()
-
-    host = args.host or State.deploy_config.WebuiHost or "0.0.0.0"
-    port = args.port or int(State.deploy_config.WebuiPort) or 22267
-    ssl_key = args.ssl_key or State.deploy_config.WebuiSSLKey
-    ssl_cert = args.ssl_cert or State.deploy_config.WebuiSSLCert
-    ssl = ssl_key is not None and ssl_cert is not None
-
-    logger.hr("Launcher config")
-    logger.attr("Host", host)
-    logger.attr("Port", port)
-    logger.attr("SSL", ssl)
-    logger.attr("Reload", ev is not None)
-
-    if ssl_cert is None and ssl_key is not None:
-        logger.error("SSL key provided without certificate. Please provide both SSL key and certificate.")
-    elif ssl_key is None and ssl_cert is not None:
-        logger.error("SSL certificate provided without key. Please provide both SSL key and certificate.")
-
-    from module.webui.api import create_api_app
-
-    app = create_api_app()
-
-    # log_level="warning" silences uvicorn's per-request access logs (the
-    # noisy GET /... 200/304 lines); application logs go through the rich
-    # console handler (stdout) and the startup marker still goes to stderr.
-    if ssl:
-        uvicorn.run(app, host=host, port=port, ssl_keyfile=ssl_key, ssl_certfile=ssl_cert, log_level="warning")
-    else:
-        uvicorn.run(app, host=host, port=port, log_level="warning")
-
+_SUBCOMMANDS = {"run", "build", "doctor", "version"}
 
 if __name__ == "__main__":
-    # Required when running frozen (PyInstaller sidecar): EnableReload
-    # spawns a child process of this module on Windows.
-    multiprocessing.freeze_support()
+    from module.cli.app import main
 
-    if State.deploy_config.EnableReload:
-        process = None
-        try:
-            should_exit = False
-            while not should_exit:
-                event = Event()
-                process = Process(target=func, args=(event,))
-                process.start()
-                while not should_exit:
-                    try:
-                        b = event.wait(1)
-                    except KeyboardInterrupt:
-                        should_exit = True
-                        break
-                    else:
-                        if b:
-                            # Reload requested (updater): stop the child and
-                            # start a fresh one.
-                            process.terminate()
-                            process.join()
-                            break
-                        elif not process.is_alive():
-                            # Backend died unexpectedly; no point waiting for
-                            # a reload event that will never come.
-                            logger.critical("Webui backend exited unexpectedly")
-                            should_exit = True
-                            break
-        finally:
-            # Ctrl+C or any other exit path must not leave the uvicorn
-            # child orphaned (previously Ctrl+C only exited the parent and
-            # the backend kept running unreachable).
-            if process is not None and process.is_alive():
-                process.terminate()
-                process.join()
+    argv = sys.argv[1:]
+    if argv and argv[0] in _SUBCOMMANDS:
+        main(argv)
     else:
-        func(ev=None)
+        main(["run", "web", *argv])

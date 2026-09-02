@@ -7,18 +7,18 @@
 ## 改动聚焦
 
 - **前端从零重写**：`webapp-tauri/` 用 Svelte 5 + Vite + UnoCSS 从零重写，与原版样式视觉等观；语义化设计令牌（design tokens），hover/active 态由 `color-mix` 派生，主题通过 `data-theme` 切换。
-- **桌面应用**：Tauri 2 桌面壳（`webapp-tauri/src-tauri/`），自动拉起/回收后端进程、系统托盘、单实例、NSIS 安装包与更新签名基建。
+- **桌面应用**：`alas run desktop`（pywebview + 系统 WebView2 窗口），统一 CLI 入口管理 headless/web/desktop 三 flavor；Tauri 2 桌面壳已于 2026-09 移除（git 历史可恢复），NSIS 安装包为 P0.5 目标。
 - **WebUI 修复**：日志盒 CJK 等宽对齐、SSE 连接时预推送已有日志、运行中任务时间跨页面保留、日志按级别渲染等。
 - **代码清理**：全量死代码审计与清理，并恢复被误删的运行时属性（`finish_time`、`is_accessible_2`、`is_nearby`、`may_mumu12_family` 等）。
-- **工程化**：uv 依赖锁定、ruff/pyright 配置、Tauri 打包与 PyInstaller 后端侧车规范（`deploy/packaging/alas_backend.spec`，DRAFT）。
+- **工程化**：uv 依赖锁定、ruff/pyright 配置、PyInstaller 后端打包（`deploy/packaging/alas_backend.spec`）与统一 CLI 入口（`module/cli`,桌面窗口 = pywebview,Tauri 壳已于 2026-09 归档）。
 
 ## 开发
 
-- 后端环境：`uv sync`（Python ≥ 3.12）
+- 后端环境：`uv sync`（Python ≥ 3.12,含 pywebview）
+- 统一入口：`alas run headless|web|desktop`、`alas build frontend|sidecar|installer`、`alas doctor`（`python alas.py` / `python gui.py` 仍为兼容 shim）
+- 桌面窗口：`alas run desktop`（pywebview;WebView2 缺失时自动回退浏览器）
 - 前端：`cd webapp-tauri && pnpm install && pnpm dev`（vite 开发服务器把 API/SSE 代理到 `127.0.0.1:22267` 的后端）
-- 桌面（开发模式）：`cd webapp-tauri && pnpm tauri dev`（需先停止占用 22267 端口的后端实例）
-- 桌面（打包）：`cd webapp-tauri && pnpm tauri build`
-- 测试：`cd webapp-tauri && pnpm test`
+- 测试：`pnpm test`（前端 vitest）；后端 `uv run pytest`
 
 ---
 

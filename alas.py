@@ -166,5 +166,9 @@ class AzurLaneAutoScript(Scheduler):
 
 
 if __name__ == "__main__":
-    alas = AzurLaneAutoScript()
-    alas.loop()
+    # Backward-compatible shim: `python alas.py` ≡ `alas run headless`.
+    import sys
+
+    from module.cli.app import main
+
+    main(["run", "headless", *sys.argv[1:]])
