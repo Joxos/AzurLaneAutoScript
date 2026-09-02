@@ -76,45 +76,57 @@ def make_app_login(get_ship: bool = True) -> dict[str, Any]:
                 },
                 "rules": [
                     # L33-36: orientation every 5s (never handles, falls through)
-                    {"action": {"call_if": _orientation_check}},
+                    {"name": "orientation", "action": {"call_if": _orientation_check}},
                     # L49-53: match template color, click, do not short-circuit
-                    {"check": {"template": LOGIN_CHECK, "offset": (30, 30), "interval": 5},
+                    {"name": "click_login",
+                     "check": {"template": LOGIN_CHECK, "offset": (30, 30), "interval": 5},
                      "action": {"click": LOGIN_CHECK}, "stop": False},
                     # L54-59: ANDROID_NO_RESPOND -> record + click
-                    {"check": {"button": ANDROID_NO_RESPOND, "offset": (30, 30), "interval": 5},
+                    {"name": "no_respond",
+                     "check": {"button": ANDROID_NO_RESPOND, "offset": (30, 30), "interval": 5},
                      "action": {"call": _click_with_record, "args": {"button": ANDROID_NO_RESPOND}}},
-                    {"check": {"button": LOGIN_ANNOUNCE, "offset": (30, 30), "interval": 5},
+                    {"name": "announce",
+                     "check": {"button": LOGIN_ANNOUNCE, "offset": (30, 30), "interval": 5},
                      "action": {"click": LOGIN_ANNOUNCE}},
-                    {"check": {"button": LOGIN_ANNOUNCE_2, "offset": (30, 30), "interval": 5},
+                    {"name": "announce2",
+                     "check": {"button": LOGIN_ANNOUNCE_2, "offset": (30, 30), "interval": 5},
                      "action": {"click": LOGIN_ANNOUNCE_2}},
                     # L64-66: event list -> back arrow
-                    {"check": {"button": EVENT_LIST_CHECK, "offset": (30, 30), "interval": 5},
+                    {"name": "event_list",
+                     "check": {"button": EVENT_LIST_CHECK, "offset": (30, 30), "interval": 5},
                      "action": {"click_and": [BACK_ARROW]}},
                     # L67-71: maintenance/update popups
-                    {"check": {"button": MAINTENANCE_ANNOUNCE, "offset": (30, 30), "interval": 5},
+                    {"name": "maintenance",
+                     "check": {"button": MAINTENANCE_ANNOUNCE, "offset": (30, 30), "interval": 5},
                      "action": {"click": MAINTENANCE_ANNOUNCE}},
-                    {"check": {"button": LOGIN_GAME_UPDATE, "offset": (30, 30), "interval": 5},
+                    {"name": "game_update",
+                     "check": {"button": LOGIN_GAME_UPDATE, "offset": (30, 30), "interval": 5},
                      "action": {"click": LOGIN_GAME_UPDATE}},
                     # L72-74: cn user agreement (wrapper keeps original method & timer)
-                    {"guard": server_eq("cn"),
+                    {"name": "cn_agreement", "guard": server_eq("cn"),
                      "check": {"custom": _cn_agreement_present},
                      "action": {"call": _handle_cn_user_agreement}},
                     # L76-81: player-return popups
-                    {"check": {"button": LOGIN_RETURN_SIGN, "offset": (30, 30), "interval": 5},
+                    {"name": "return_sign",
+                     "check": {"button": LOGIN_RETURN_SIGN, "offset": (30, 30), "interval": 5},
                      "action": {"click": LOGIN_RETURN_SIGN}},
-                    {"check": {"button": LOGIN_RETURN_INFO, "offset": (30, 30), "interval": 5},
+                    {"name": "return_info",
+                     "check": {"button": LOGIN_RETURN_INFO, "offset": (30, 30), "interval": 5},
                      "action": {"click": LOGIN_RETURN_INFO}},
-                    {"check": {"button": AVATAR_EXPIRED, "offset": (30, 30), "interval": 5},
+                    {"name": "avatar_expired",
+                     "check": {"button": AVATAR_EXPIRED, "offset": (30, 30), "interval": 5},
                      "action": {"click": AVATAR_EXPIRED}},
                     # L83-86: generic confirm popup + urgent commission (hot-fix guard inside)
                     # call_if = original `if self.handle_popup_confirm(...): continue` semantics
-                    {"action": {"call_if": _popup_confirm, "args": {"name": "LOGIN"}}},
-                    {"action": {"call_if": _urgent_commission}},
+                    {"name": "popup_confirm", "action": {"call_if": _popup_confirm, "args": {"name": "LOGIN"}}},
+                    {"name": "urgent_commission", "action": {"call_if": _urgent_commission}},
                     # L88-89: page_main popups -> handled means login done, exit True
-                    {"action": {"call_if": _login_main_popups, "args": {"get_ship": get_ship}},
+                    {"name": "main_popups",
+                     "action": {"call_if": _login_main_popups, "args": {"get_ship": get_ship}},
                      "then": {"exit": True}},
                     # L91-92: last-resort GOTO_MAIN
-                    {"check": {"button": GOTO_MAIN, "offset": (30, 30), "interval": 5},
+                    {"name": "goto_main",
+                     "check": {"button": GOTO_MAIN, "offset": (30, 30), "interval": 5},
                      "action": {"click": GOTO_MAIN}},
                 ],
                 # original while-1 had no timeout; engine guard default (safe ceiling)

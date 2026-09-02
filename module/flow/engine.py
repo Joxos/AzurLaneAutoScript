@@ -144,7 +144,10 @@ class FlowEngine:
                         attempts[key] = att
                     att["count"] += 1
 
-                self._log(f"state={state_holder[0]} hit rule={rule.get('name') or ('attempts' if att_spec else '#')}")
+                self._log(
+                    f"state={state_holder[0]} hit rule={rule.get('name') or ('attempts' if att_spec else '#')}"
+                    + (" ✓" if auto_handled else "")
+                )
                 result = None
                 if not auto_done:
                     result = self._action(action, ctx)
@@ -158,6 +161,8 @@ class FlowEngine:
 
                 result = apply(control)
                 if result is not None:
+                    if control is not None:
+                        self._log(f"state={state_holder[0]} exit ✓")
                     return result
                 effective_stop = rule.get("stop", True)
                 if auto_done:
@@ -188,12 +193,14 @@ class FlowEngine:
             if action and "call_if" in action:
                 if action["call_if"](ctx, action.get("args") or {}):
                     self._reset_intervals(action, ctx)
+                    self._log(f"group handled: {rule.get('name') or '#'} ✓")
                     return True
                 continue
             if rule.get("check") is None or self._check(rule.get("check"), ctx):
                 if action:
                     self._action(action, ctx)
                     self._reset_intervals(action, ctx)
+                self._log(f"group handled: {rule.get('name') or '#'} ✓")
                 return True
         return False
 
