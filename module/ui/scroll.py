@@ -6,6 +6,69 @@ from module.base.timer import Timer
 from module.base.utils import color_similarity_2d, random_rectangle_point, rgb2gray
 from module.logger import logger
 
+# ---------------------------------------------------------------------------
+# Scroll drive flow (B2b): `set` loop as flow data (returns dragged count).
+# ---------------------------------------------------------------------------
+
+
+def _scroll_done(ctx, args=None, **kw):
+    scroll = (args or {}).get("scroll")
+    position = (args or {}).get("position")
+    current = scroll.cal_position(ctx.owner)
+    if abs(position - current) < scroll.drag_threshold:
+        return True
+    ctx.params["_scroll_current"] = current
+    if scroll.length:
+        scroll.drag_timeout.reset()
+        ctx.params["_scroll_skip"] = False
+    else:
+        if scroll.drag_timeout.reached():
+            logger.warning("Scroll disappeared, assume scroll set")
+            return True
+        ctx.params["_scroll_skip"] = True
+    return False
+
+
+def _scroll_click_ready(ctx, args=None, **kw):
+    if ctx.params.get("_scroll_skip"):
+        ctx.params["_scroll_skip"] = False
+        return False
+    return (args or {}).get("scroll").drag_interval.reached()
+
+
+def _scroll_click(ctx, args=None, **kw):
+    scroll = (args or {}).get("scroll")
+    position = (args or {}).get("position")
+    random_range = (args or {}).get("random_range")
+    distance_check = (args or {}).get("distance_check", True)
+    current = ctx.params["_scroll_current"]
+    p1 = random_rectangle_point(scroll.position_to_screen(current), n=1)
+    p2 = random_rectangle_point(scroll.position_to_screen(position, random_range=random_range), n=1)
+    ctx.owner.device.swipe(p1, p2, name=scroll.name, distance_check=distance_check)
+    scroll.drag_interval.reset()
+    ctx.params["_dragged"] = ctx.params.get("_dragged", 0) + 1
+    return True
+
+
+def _scroll_set_flow(scroll: "Scroll", position: float, random_range, distance_check: bool) -> dict:
+    return {
+        "name": "scroll_set",
+        "entry": "s",
+        "states": {
+            "s": {
+                "exit": {"check": {"custom": _scroll_done, "args": {
+                    "scroll": scroll, "position": position}},
+                    "on_success": {"exit": {"__var__": "_dragged"}}},
+                "rules": [
+                    {"name": "drag", "check": {"custom": _scroll_click_ready, "args": {"scroll": scroll}},
+                     "action": {"call": _scroll_click, "args": {
+                         "scroll": scroll, "position": position,
+                         "random_range": random_range, "distance_check": distance_check}}},
+                ],
+            },
+        },
+    }
+
 
 class Scroll:
     color_threshold = 221
@@ -133,38 +196,16 @@ class Scroll:
         logger.info(f"{self.name} set to {position}")
         self.drag_interval.clear()
         self.drag_timeout.reset()
-        dragged = 0
         if position <= self.edge_threshold:
             random_range = np.subtract(0, self.edge_add)
         if position >= 1 - self.edge_threshold:
             random_range = self.edge_add
 
-        while 1:
-            if skip_first_screenshot:
-                skip_first_screenshot = False
-            else:
-                main.device.screenshot()
+        from module.flow.engine import FlowEngine
 
-            current = self.cal_position(main)
-            if abs(position - current) < self.drag_threshold:
-                break
-            if self.length:
-                self.drag_timeout.reset()
-            else:
-                if self.drag_timeout.reached():
-                    logger.warning("Scroll disappeared, assume scroll set")
-                    break
-                else:
-                    continue
-
-            if self.drag_interval.reached():
-                p1 = random_rectangle_point(self.position_to_screen(current), n=1)
-                p2 = random_rectangle_point(self.position_to_screen(position, random_range=random_range), n=1)
-                main.device.swipe(p1, p2, name=self.name, distance_check=distance_check)
-                self.drag_interval.reset()
-                dragged += 1
-
-        return dragged
+        return FlowEngine(
+            owner=main, device=main.device, config=main.config, skip_first=skip_first_screenshot
+        ).run(_scroll_set_flow(self, position, random_range, distance_check), params={"_dragged": 0})
 
     def set_top(self, main, random_range=(-0.05, 0.05), skip_first_screenshot=True):
         return self.set(0.00, main=main, random_range=random_range, skip_first_screenshot=skip_first_screenshot)

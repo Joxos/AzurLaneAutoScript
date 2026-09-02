@@ -76,6 +76,10 @@ class FlowEngine:
                 return None
             kind, value = routed
             if kind == "exit":
+                # {"__var__": name}: dynamic exit value from the run's params
+                # (e.g. Switch.set returns `changed`, Scroll.set returns `dragged`).
+                if isinstance(value, dict) and set(value) == {"__var__"}:
+                    value = ctx.params.get(value["__var__"])
                 return ("__done__", value)
             if value == EXIT:
                 return ("__done__", None)

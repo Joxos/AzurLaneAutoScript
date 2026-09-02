@@ -1,6 +1,105 @@
+from typing import Any
+
 from module.base.timer import Timer
 from module.exception import ScriptError
 from module.logger import logger
+
+# ---------------------------------------------------------------------------
+# Switch drive flows (B2b): `set` / `wait` loops as flow data. Helpers call
+# the Switch's original primitives (get/click/handle_additional) via args;
+# per-run mutable state (changed/has_unknown/current) lives in ctx.params.
+# ---------------------------------------------------------------------------
+
+
+def _sw_current(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> str:
+    sw = (args or {}).get("sw")
+    current = sw.get(main=ctx.owner)
+    logger.attr(sw.name, current)
+    return current
+
+
+def _sw_set_done(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    """Exit check: detect current state; maintain the unknown/has_unknown logic."""
+    sw = (args or {}).get("sw")
+    state = (args or {}).get("state")
+    current = _sw_current(ctx, args)
+    ctx.params["_sw_current"] = current
+    if current == state:
+        return True
+    if current == "unknown":
+        if sw.set_unknown_timer.reached():
+            logger.warning(
+                f"Switch {sw.name} has states evaluated to unknown, asset should be re-verified"
+            )
+            ctx.params["_sw_has_unknown"] = True
+            sw.set_unknown_timer.reset()
+    else:
+        sw.set_unknown_timer.reset()
+    return False
+
+
+def _sw_wait_done(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    return _sw_current(ctx, args) != "unknown"
+
+
+def _sw_additional(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    return (args or {}).get("sw").handle_additional(main=ctx.owner)
+
+
+def _sw_click_ready(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    """Known state (or unknown after has_unknown) + click timer reached."""
+    sw = (args or {}).get("sw")
+    current = ctx.params.get("_sw_current")
+    if current == "unknown" and not ctx.params.get("_sw_has_unknown"):
+        return False
+    return sw.set_click_timer.reached()
+
+
+def _sw_click(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    sw = (args or {}).get("sw")
+    state = (args or {}).get("state")
+    current = ctx.params.get("_sw_current")
+    click_state = state if sw.is_selector or current == "unknown" else current
+    sw.click(click_state, main=ctx.owner)
+    ctx.params["_sw_changed"] = True
+    sw.set_click_timer.reset()
+    sw.set_unknown_timer.reset()
+    return True
+
+
+def _sw_set_flow(sw: "Switch", state: str) -> dict[str, Any]:
+    return {
+        "name": "switch_set",
+        "entry": "s",
+        "states": {
+            "s": {
+                "exit": {"check": {"custom": _sw_set_done, "args": {"sw": sw, "state": state}},
+                         "on_success": {"exit": {"__var__": "_sw_changed"}}},
+                "rules": [
+                    {"name": "additional", "action": {"call_if": _sw_additional, "args": {"sw": sw}}},
+                    {"name": "click",
+                     "check": {"custom": _sw_click_ready, "args": {"sw": sw, "state": state}},
+                     "action": {"call": _sw_click, "args": {"sw": sw, "state": state}}},
+                ],
+                # safety ceiling; original loop had none (click_timer would hang)
+                "on_timeout": {"seconds": 120, "mode": "warn"},
+            },
+        },
+    }
+
+
+def _sw_wait_flow(sw: "Switch") -> dict[str, Any]:
+    return {
+        "name": "switch_wait",
+        "entry": "s",
+        "states": {
+            "s": {
+                "exit": {"check": {"custom": _sw_wait_done, "args": {"sw": sw}}, "on_success": {"exit": True}},
+                "rules": [{"name": "additional", "action": {"call_if": _sw_additional, "args": {"sw": sw}}}],
+                "on_timeout": {"seconds": 2, "count": 4, "mode": "exit", "value": False},
+            },
+        },
+    }
 
 
 class Switch:
@@ -133,65 +232,19 @@ class Switch:
         Returns:
             bool: If clicked
         """
+        from module.flow.engine import FlowEngine
+
         logger.info(f"{self.name} set to {state}")
         self.get_data(state)
 
-        changed = False
-        has_unknown = False
-        unknown_timer = self.set_unknown_timer.reset()
-        click_timer = self.set_click_timer.clear()
-        while 1:
-            if skip_first_screenshot:
-                skip_first_screenshot = False
-            else:
-                main.device.screenshot()
-
-            # Detect
-            current = self.get(main=main)
-            logger.attr(self.name, current)
-
-            # End
-            if current == state:
-                return changed
-
-            # Handle additional popups
-            if self.handle_additional(main=main):
-                continue
-
-            # Warning
-            if current == "unknown":
-                if unknown_timer.reached():
-                    logger.warning(f"Switch {self.name} has states evaluated to unknown, asset should be re-verified")
-                    has_unknown = True
-                    unknown_timer.reset()
-                # If unknown_timer never reached, don't click when having an unknown state,
-                # the unknown state is probably the switching animation.
-                # If unknown_timer reached once, click target state ignoring whether state is unknown or not,
-                # the unknown state is probably a new state not yet added.
-                # By ignoring new states, Switch.set() can still switch among known states.
-                if not has_unknown:
-                    continue
-            else:
-                # Known state, reset timer
-                unknown_timer.reset()
-
-            # Click
-            if click_timer.reached():
-                if self.is_selector:
-                    # Click target state to switch
-                    click_state = state
-                else:
-                    # If this is a selector, click on current state to switch to another
-                    # But 'unknown' is not clickable, if it is, click target state instead
-                    # assuming all selector states share the same position.
-                    if current == "unknown":
-                        click_state = state
-                    else:
-                        click_state = current
-                self.click(click_state, main=main)
-                changed = True
-                click_timer.reset()
-                unknown_timer.reset()
+        # Original pre-loop state (timers + the `changed` return value).
+        self.set_unknown_timer.reset()
+        self.set_click_timer.clear()
+        return bool(
+            FlowEngine(owner=main, device=main.device, config=main.config, skip_first=skip_first_screenshot).run(
+                _sw_set_flow(self, state), params={"_sw_changed": False}
+            )
+        )
 
     def wait(self, main, skip_first_screenshot=True):
         """
@@ -204,24 +257,11 @@ class Switch:
         Returns:
             bool: If success
         """
-        timeout = self.wait_timeout.reset()
-        while 1:
-            if skip_first_screenshot:
-                skip_first_screenshot = False
-            else:
-                main.device.screenshot()
+        from module.flow.engine import FlowEngine
 
-            # Detect
-            current = self.get(main=main)
-            logger.attr(self.name, current)
-
-            # End
-            if current != "unknown":
-                return True
-            if timeout.reached():
-                logger.warning(f"{self.name} wait activated timeout")
-                return False
-
-            # Handle additional popups
-            if self.handle_additional(main=main):
-                continue
+        self.wait_timeout.reset()
+        return bool(
+            FlowEngine(owner=main, device=main.device, config=main.config, skip_first=skip_first_screenshot).run(
+                _sw_wait_flow(self)
+            )
+        )

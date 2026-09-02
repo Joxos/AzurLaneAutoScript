@@ -63,7 +63,9 @@ class ScriptedOwner:
         self._flow_orientation_timer = FakeTimer()
 
     def _state(self) -> dict:
-        return self.plan[min(self.device.tick - 1, len(self.plan) - 1)]
+        # skip_first flows evaluate before the first screenshot (tick 0): treat as tick 1
+        tick = max(self.device.tick, 1)
+        return self.plan[min(tick - 1, len(self.plan) - 1)]
 
     def appear(self, button, offset=0, interval=0, similarity=0.85, threshold=10):
         return getattr(button, "name", str(button)) in self._state().get("present", ())
@@ -500,3 +502,89 @@ def test_info_handler_wait_flows_valid():
     ]
     for flow in flows:
         assert validate_flow(flow) == []
+
+
+# ---------------------------------------------------------------------------
+# B2b: ui drives (Switch/Setting/Navbar/Scroll)
+# ---------------------------------------------------------------------------
+
+
+class _Btn:
+    def __init__(self, name):
+        self.name = name
+
+
+class DriveOwner(ScriptedOwner):
+    def image_color_count(self, button, color=None, threshold=221, count=50):
+        return getattr(button, "name", str(button)) in self._state().get("present", ())
+
+    def swipe(self, p1, p2, name=None, distance_check=True):
+        self.device.calls.append(("swipe", name))
+
+
+def test_switch_set_flow_dry_run():
+    from module.ui.switch import Switch
+
+    on, off = _Btn("SW_ON"), _Btn("SW_OFF")
+    sw = Switch("test")
+    sw.add_state("on", on)
+    sw.add_state("off", off)
+
+    device = FakeDevice()
+    plan = [{"present": ("SW_ON",)}, {"present": ("SW_OFF",)}]
+    owner = DriveOwner(device, plan)
+    assert sw.set("off", main=owner) is True  # clicked to toggle, then reached 'off'
+    clicks = [c for c in device.calls if c[0] == "click"]
+    assert any("SW_ON" in c for c in clicks)
+
+
+def test_switch_wait_flow_dry_run():
+    from module.ui.switch import Switch
+
+    on = _Btn("SW_ON2")
+    sw = Switch("test2")
+    sw.add_state("on", on)
+    device = FakeDevice()
+    plan = [{"present": ()}, {"present": ("SW_ON2",)}]
+    owner = DriveOwner(device, plan)
+    assert sw.wait(main=owner) is True
+
+
+def test_setting_flow_dry_run():
+    from module.ui.setting import Setting
+
+    a, b = _Btn("OPT_A"), _Btn("OPT_B")
+    s = Setting("test")
+    s.add_setting("sort", [a, b], ["a", "b"], "a")
+    s.reset_first = False
+    device = FakeDevice()
+    owner = DriveOwner(device, [{"present": ("OPT_A",)}, {"present": ("OPT_B",)}])
+    s.main = owner
+    # target "b": tick1 active is a -> click b; tick2 active b -> True
+    # (original Setting.set itself returned None; _set_execute is the bool source)
+    assert s._set_execute(sort="b") is True
+    clicks = [c for c in device.calls if c[0] == "click"]
+    assert any("OPT_B" in c for c in clicks)
+
+
+def test_drive_flows_valid():
+    from module.ui.navbar import Navbar, _nav_set_flow
+    from module.ui.scroll import Scroll, _scroll_set_flow
+    from module.ui.setting import Setting, _setting_flow
+    from module.ui.switch import Switch, _sw_set_flow, _sw_wait_flow
+
+    sw = Switch("t")
+    sw.add_state("on", _Btn("N1"))
+    assert validate_flow(_sw_set_flow(sw, "on")) == []
+    assert validate_flow(_sw_wait_flow(sw)) == []
+
+    s = Setting("t")
+    s.add_setting("sort", [_Btn("N2")], ["a"], "a")
+    assert validate_flow(_setting_flow(s, {"sort": "a"})) == []
+
+    grids = type("G", (), {"buttons": [_Btn("N3")], "_name": "g"})
+    nav = Navbar(grids)
+    assert validate_flow(_nav_set_flow(nav, 1, None)) == []
+
+    scroll = Scroll((0, 0, 10, 10), (255, 255, 255))
+    assert validate_flow(_scroll_set_flow(scroll, 0.5, (-0.05, 0.05), True)) == []

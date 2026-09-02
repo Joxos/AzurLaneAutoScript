@@ -1,6 +1,76 @@
+from typing import Any
+
 from module.base.timer import Timer
 from module.logger import logger
 from module.ui.assets_bridge import GET_ITEMS_1, GET_ITEMS_2, GET_SHIP, SHOP_CLICK_SAFE_AREA
+
+# ---------------------------------------------------------------------------
+# Navbar drive flow (B2b): `set` loop as flow data.
+# ---------------------------------------------------------------------------
+
+
+def _nav_done(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    nav = (args or {}).get("nav")
+    active, minimum, maximum = nav.get_info(main=ctx.owner)
+    logger.info(f"Nav item active: {active} from range ({minimum}, {maximum})")
+    left = (args or {}).get("left")
+    right = (args or {}).get("right")
+    if active is None or minimum is None or maximum is None:
+        ctx.params["_nav_ok"] = False
+        return False
+    index = minimum + left - 1 if left is not None else maximum - right + 1
+    ctx.params["_nav_index"] = index
+    if not minimum <= index <= maximum:
+        logger.warning(f"Index to set ({index}) is not within the nav items that appears ({minimum}, {maximum})")
+        ctx.params["_nav_ok"] = False
+        return False
+    ctx.params["_nav_ok"] = True
+    return active == index
+
+
+def _nav_obstruct(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    handled = (args or {}).get("nav")._shop_obstruct_handle(main=ctx.owner)
+    if handled:
+        # original: interval.reset(); timeout.reset(); continue
+        ctx.params["_nav_interval"] = Timer(2, count=4)
+    return handled
+
+
+def _nav_click_ready(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    if not ctx.params.get("_nav_ok"):
+        return False
+    interval = ctx.params.get("_nav_interval")
+    if interval is None:
+        interval = Timer(2, count=4)
+        ctx.params["_nav_interval"] = interval
+    return interval.reached()
+
+
+def _nav_click(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    nav = (args or {}).get("nav")
+    ctx.owner.device.click(nav.grids.buttons[ctx.params["_nav_index"]])
+    ctx.params["_nav_interval"].reset()
+    return True
+
+
+def _nav_set_flow(nav: "Navbar", left: int | None, right: int | None) -> dict[str, Any]:
+    return {
+        "name": "navbar_set",
+        "entry": "s",
+        "states": {
+            "s": {
+                "exit": {"check": {"custom": _nav_done, "args": {"nav": nav, "left": left, "right": right}},
+                         "on_success": {"exit": True}},
+                "rules": [
+                    {"name": "obstruct", "action": {"call_if": _nav_obstruct, "args": {"nav": nav}},
+                     "on_handled": {"extend_timeout": 10}},
+                    {"name": "click", "check": {"custom": _nav_click_ready, "args": {"nav": nav}},
+                     "action": {"call": _nav_click, "args": {"nav": nav}}},
+                ],
+                "on_timeout": {"seconds": 10, "count": 20, "mode": "exit", "value": False},
+            },
+        },
+    }
 
 
 class Navbar:
@@ -167,41 +237,10 @@ class Navbar:
                 text += f"{k}={locals().get(k, None)} "
         logger.info(f"{self.name} set to {text.strip()}")
 
-        interval = Timer(2, count=4)
-        timeout = Timer(10, count=20).start()
-        while 1:
-            if skip_first_screenshot:
-                skip_first_screenshot = False
-            else:
-                main.device.screenshot()
+        from module.flow.engine import FlowEngine
 
-            if timeout.reached():
-                logger.warning(f"{self.name} failed to set {text.strip()}")
-                return False
-
-            if self._shop_obstruct_handle(main=main):
-                interval.reset()
-                timeout.reset()
-                continue
-
-            active, minimum, maximum = self.get_info(main=main)
-            logger.info(f"Nav item active: {active} from range ({minimum}, {maximum})")
-            # Get None when receiving a pure black screenshot.
-            # Active is None could be because of slow animation
-            if active is None or minimum is None or maximum is None:
-                continue
-
-            index = minimum + left - 1 if left is not None else maximum - right + 1
-            if not minimum <= index <= maximum:
-                logger.warning(
-                    f"Index to set ({index}) is not within the nav items that appears ({minimum}, {maximum})"
-                )
-                continue
-
-            # End
-            if active == index:
-                return True
-
-            if interval.reached():
-                main.device.click(self.grids.buttons[index])
-                interval.reset()
+        return bool(
+            FlowEngine(owner=main, device=main.device, config=main.config, skip_first=skip_first_screenshot).run(
+                _nav_set_flow(self, left, right)
+            )
+        )

@@ -1,4 +1,5 @@
 import copy
+from typing import Any
 
 from module.base.base import ModuleBase
 from module.base.button import Button, ButtonGrid
@@ -6,6 +7,58 @@ from module.base.timer import Timer
 from module.config.utils import dict_to_kv
 from module.exception import ScriptError
 from module.logger import logger
+
+# ---------------------------------------------------------------------------
+# Setting drive flow (B2b): `_set_execute` loop as flow data.
+# ---------------------------------------------------------------------------
+
+
+def _setting_done(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    setting = (args or {}).get("setting")
+    kwargs = (args or {}).get("kwargs")
+    setting.show_active_buttons()
+    clicks = setting.get_buttons_to_click(setting._product_setting_status(**kwargs))
+    if clicks:
+        ctx.params["_setting_clicks"] = clicks
+        return False
+    return True
+
+
+def _setting_click_ready(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    if not ctx.params.get("_setting_clicks"):
+        return False
+    retry = ctx.params.get("_setting_retry")
+    if retry is None:
+        retry = Timer(1, count=2)
+        ctx.params["_setting_retry"] = retry
+    return retry.reached()
+
+
+def _setting_click(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    retry = ctx.params["_setting_retry"]
+    for button in ctx.params["_setting_clicks"]:
+        ctx.owner.device.click(button)
+    retry.reset()
+    return True
+
+
+def _setting_flow(setting: "Setting", kwargs: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "name": "setting_set",
+        "entry": "s",
+        "states": {
+            "s": {
+                "exit": {"check": {"custom": _setting_done, "args": {"setting": setting, "kwargs": kwargs}},
+                         "on_success": {"exit": True}},
+                "rules": [
+                    {"name": "click",
+                     "check": {"custom": _setting_click_ready, "args": {"setting": setting}},
+                     "action": {"call": _setting_click, "args": {"setting": setting}}},
+                ],
+                "on_timeout": {"seconds": 10, "count": 20, "mode": "exit", "value": False},
+            },
+        },
+    }
 
 
 class Setting:
@@ -128,31 +181,14 @@ class Setting:
         Returns:
             bool: If success the set
         """
-        status = self._product_setting_status(**kwargs)
+        from module.flow.engine import FlowEngine
 
         logger.info(f"Setting options {self.name}, {dict_to_kv(kwargs)}")
-        skip_first_screenshot = True
-        retry = Timer(1, count=2)
-        timeout = Timer(10, count=20).start()
-        while 1:
-            if skip_first_screenshot:
-                skip_first_screenshot = False
-            else:
-                self.main.device.screenshot()
-
-            if timeout.reached():
-                logger.warning(f"Set {self.name} options timeout, assuming current options are correct.")
-                return False
-
-            self.show_active_buttons()
-            clicks = self.get_buttons_to_click(status)
-            if clicks:
-                if retry.reached():
-                    for button in clicks:
-                        self.main.device.click(button)
-                    retry.reset()
-            else:
-                return True
+        return bool(
+            FlowEngine(owner=self.main, device=self.main.device, config=self.main.config).run(
+                _setting_flow(self, kwargs)
+            )
+        )
 
     def set(self, **kwargs):
         """
