@@ -8,7 +8,7 @@
 ```
 [portable zip / NSIS 安装包]（P0.5 前为 zip；NSIS 后为 setup.exe）
   └─ alas-backend/            ← PyInstaller onedir（一体化,无独立壳）
-       ├─ alas-backend.exe    ← 入口（console; gui.py shim → module.cli）
+       ├─ alas-backend.exe    ← 入口（console; deploy/packaging/entry.py → module.cli）
        ├─ version.txt         ← release tag
        └─ _internal/          ← 运行时 + 打包 datas（含 webapp-tauri/dist 与 pywebview）
 ```

@@ -15,7 +15,7 @@
 ## 开发
 
 - 后端环境：`uv sync`（Python ≥ 3.12,含 pywebview）
-- 统一入口：`alas run headless|web|desktop`、`alas build frontend|sidecar|installer`、`alas doctor`（`python alas.py` / `python gui.py` 仍为兼容 shim）
+- 统一入口：`alas run headless|web|desktop`、`alas build frontend|sidecar|installer`、`alas doctor`（唯一入口;`alas.py`/`gui.py` 旧脚本已移除,python 侧请用 `python -m module.cli`）
 - 桌面窗口：`alas run desktop`（pywebview;WebView2 缺失时自动回退浏览器）
 - 前端：`cd webapp-tauri && pnpm install && pnpm dev`（vite 开发服务器把 API/SSE 代理到 `127.0.0.1:22267` 的后端）
 - 测试：`pnpm test`（前端 vitest）；后端 `uv run pytest`

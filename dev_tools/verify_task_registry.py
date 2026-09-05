@@ -22,9 +22,12 @@ for m in mismatch:
     print(" ", m)
 
 # 2) Registry covers every old task method (except infra).
-# Compare against master (pre-refactor) so the check stays meaningful after
-# the refactor branch itself has moved HEAD past alas.py rewrite.
-old = subprocess.run(["git", "show", "master:alas.py"], capture_output=True, text=True, check=True).stdout
+# The baseline is the last commit that still carried alas.py (b7b4259bd,
+# before the app shell moved to module/alas.py), so the check stays
+# meaningful after top-level entry scripts were removed.
+old = subprocess.run(
+    ["git", "show", "b7b4259bd:alas.py"], capture_output=True, text=True, check=True
+).stdout
 tree = ast.parse(old)
 cls = next(n for n in tree.body if isinstance(n, ast.ClassDef))
 old_methods = {n.name for n in cls.body if isinstance(n, ast.FunctionDef)}

@@ -1,3 +1,12 @@
+"""Alas app shell: config/device/checker, task dispatch, and infra methods.
+
+The scheduler loop lives in the `Scheduler` mixin (module/scheduler); this
+class is the bot process shell. It is instantiated by the CLI (`alas run
+headless`, module/cli/run.py) and by the webui process manager. The legacy
+`alas.py` / `gui.py` entry scripts have been removed: `alas` (console
+script, pyproject.toml) is the only entry point.
+"""
+
 import os
 import re
 import threading
@@ -163,12 +172,3 @@ class AzurLaneAutoScript(Scheduler):
             logger.info("App is not running, start app and goto main page")
             LoginHandler(self.config, device=self.device).app_start()
             UI(self.config, device=self.device).ui_goto_main()
-
-
-if __name__ == "__main__":
-    # Backward-compatible shim: `python alas.py` ≡ `alas run headless`.
-    import sys
-
-    from module.cli.app import main
-
-    main(["run", "headless", *sys.argv[1:]])

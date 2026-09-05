@@ -63,7 +63,7 @@ for pkg in ("cv2", "onnxruntime", "scipy", "av", "PIL"):
     hiddenimports += h
 
 a = Analysis(
-    [os.path.join(root, "gui.py")],
+    [os.path.join(root, "deploy", "packaging", "entry.py")],
     # Project modules (root) plus the synced venv site-packages (CI runs
     # `uv sync` first, so .venv/Lib/site-packages holds the locked deps).
     # pathex only feeds the ANALYSIS search path; the pyinstaller process

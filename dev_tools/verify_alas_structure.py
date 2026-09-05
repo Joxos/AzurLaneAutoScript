@@ -1,11 +1,10 @@
-"""Verify refactored alas.py structure (P1.4)."""
+"""Verify refactored module/alas.py structure (P1.4)."""
 
 import sys
 
 sys.path.insert(0, ".")
 
-import alas  # noqa: F401
-from alas import AzurLaneAutoScript
+from module.alas import AzurLaneAutoScript
 
 alas_obj = AzurLaneAutoScript.__new__(AzurLaneAutoScript)
 for infra in ["restart", "start", "goto_main", "wait_until", "get_next_task", "loop", "save_error_log"]:
@@ -26,6 +25,4 @@ from module.tasks.registry import TASK_BY_COMMAND
 
 for cmd in ["research", "opsi_explore", "main"]:
     assert TASK_BY_COMMAND.get(cmd), f"unregistered command: {cmd}"
-print("alas.py STRUCTURE VERIFICATION PASSED")
-with open("alas.py", encoding="utf-8") as f:
-    print(f"alas.py lines: {len(f.readlines())}")
+print("module/alas.py STRUCTURE VERIFICATION PASSED")

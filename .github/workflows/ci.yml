@@ -25,7 +25,7 @@ jobs:
       # module/core and friends still carry pre-existing findings - the cv2
       # stubs reject scalar/tuple image ops all over module/core).
       - name: Lint (scoped)
-        run: uv run ruff check alas.py module/logger.py module/scheduler module/tasks module/core module/base module/device module/map_detection tests dev_tools/verify_alas_structure.py
+        run: uv run ruff check module/alas.py module/logger.py module/scheduler module/tasks module/core module/base module/device module/map_detection tests dev_tools/verify_alas_structure.py
 
       - name: Type check (scoped)
         run: uv run pyright module/logger.py module/scheduler module/tasks tests

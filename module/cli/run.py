@@ -1,8 +1,7 @@
 """Runtime flavors of `alas run`: headless / web / desktop.
 
-Entry points moved here from the legacy `alas.py` / `gui.py` scripts; those
-two files are now backward-compatible shims that delegate to this package.
-See .qoder/doc/reorg-cli-flow-2026.md §2 (P0).
+Entry points were consolidated here from the legacy `alas.py` / `gui.py`
+scripts (both removed). See .qoder/doc/reorg-cli-flow-2026.md §2 (P0).
 """
 
 from __future__ import annotations
@@ -22,7 +21,7 @@ from module.logger import logger
 
 
 def run_headless(name: str) -> None:
-    """Run the scheduler loop for one config without any UI (legacy `python alas.py`)."""
+    """Run the scheduler loop for one config without any UI (legacy `python alas.py` equivalent)."""
     # The automation loop runs many small image ops (screenshot, template
     # matching, preprocessing). OpenCV's default thread pool (one per core)
     # creates a thread storm on many-core machines and contends with the
@@ -32,7 +31,7 @@ def run_headless(name: str) -> None:
 
     cv2.setNumThreads(2)
 
-    from alas import AzurLaneAutoScript
+    from module.alas import AzurLaneAutoScript
 
     bot = AzurLaneAutoScript(config_name=name)
     bot.loop()
@@ -78,7 +77,7 @@ def _open_browser_when_ready(host: str, port: int, open_browser: bool) -> None:
 
 
 def _serve(ev: threading.Event | None, args: WebArgs, open_browser: bool, key: str | None) -> None:
-    """Run uvicorn + the FastAPI app (legacy `python gui.py` body)."""
+    """Run uvicorn + the FastAPI app (legacy `python gui.py` body, now `alas run web`)."""
     import asyncio
     import sys
 
@@ -125,7 +124,7 @@ def _serve(ev: threading.Event | None, args: WebArgs, open_browser: bool, key: s
 
 
 def run_web(args: WebArgs, open_browser: bool = True, key: str | None = None) -> None:
-    """Start the webui backend (legacy `python gui.py`).
+    """Start the webui backend (legacy `python gui.py`, now `alas run web`).
 
     When deploy.yaml's EnableReload is on, the parent process supervises a
     child process and restarts it when the updater signals a reload (the

@@ -1,8 +1,9 @@
 """`alas` command definitions (thin; logic lives in run.py / build.py / doctor.py).
 
 Console script: pyproject.toml `[project.scripts] alas = "module.cli:main"`.
-Legacy entries (`python alas.py`, `python gui.py`) are shims that call
-`main(["run", ...])`.
+It is the only runtime entry point; the legacy `alas.py` / `gui.py` scripts
+have been removed. `python -m module.cli` stays available as a source
+checkout equivalent.
 """
 
 from __future__ import annotations
@@ -34,7 +35,7 @@ def run_headless(
         list[str] | None, typer.Option("--name", "-n", help="Config name to run (single; default: alas).")
     ] = None,
 ) -> None:
-    """Run the scheduler loop without any UI (alias of `python alas.py`)."""
+    """Run the scheduler loop without any UI (the `alas run headless` flavor)."""
     names = names or ["alas"]
     if len(names) > 1:
         raise typer.BadParameter("headless 仅支持单个 --name,多个配置请用 `alas run web`")
@@ -55,7 +56,7 @@ def run_web(
         list[str] | None, typer.Option("--run", help="[deprecated, ignored] Config names to start on launch.")
     ] = None,
 ) -> None:
-    """Start the WebUI backend + SPA (alias of `python gui.py`)."""
+    """Start the WebUI backend + SPA (the `alas run web` flavor)."""
     if _run:
         logger.warning("--run 已废弃并被忽略,请在 WebUI 中各配置自行启动")
     from module.cli.run import run_web as _impl

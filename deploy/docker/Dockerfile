@@ -18,4 +18,4 @@ RUN apt update \
  && rm /tmp/requirements.txt \
  && rm -r ~/.cache/pip
 
-CMD python gui.py
+CMD python -m module.cli run web

@@ -89,7 +89,7 @@ def test_declared_kwargs_match_call_targets():
 
 def test_resolution_passes_method_kwargs_to_method(monkeypatch):
     """End-to-end: ctor gets kwargs, the run call gets method_kwargs."""
-    import alas
+    import module.alas as alas
     import module.tasks.registry as reg
 
     calls = {}

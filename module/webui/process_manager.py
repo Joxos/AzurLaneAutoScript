@@ -148,13 +148,13 @@ class ProcessManager:
         try:
             # Run alas
             if func == "alas":
-                from alas import AzurLaneAutoScript
+                from module.alas import AzurLaneAutoScript
 
                 if e is not None:
                     AzurLaneAutoScript.stop_event = e
                 AzurLaneAutoScript(config_name=config_name).loop()
             elif func in get_available_func():
-                from alas import AzurLaneAutoScript
+                from module.alas import AzurLaneAutoScript
 
                 AzurLaneAutoScript(config_name=config_name).run(inflection.underscore(func), skip_first_screenshot=True)
             elif func in get_available_mod():

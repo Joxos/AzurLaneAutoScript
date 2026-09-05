@@ -50,7 +50,9 @@ def iter_module_names():
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--json", default=None, help="Write results to this JSON file")
-    parser.add_argument("--top", action="store_true", help="Also import top-level entries (alas.py, gui.py)")
+    parser.add_argument(
+        "--top", action="store_true", help="[obsolete] Top-level entry scripts were removed; kept for CLI compat"
+    )
     args = parser.parse_args()
 
     results = {}
@@ -67,7 +69,9 @@ def main():
             failed.append((name, str(e), tb))
 
     if args.top:
-        for entry in ("alas", "gui"):
+        # Top-level entry scripts (alas.py / gui.py) were removed in favour of
+        # the `alas` console script (module.cli); nothing left to import there.
+        for entry in ("module.alas",):
             try:
                 importlib.import_module(entry)
                 results[f"<top> {entry}"] = "ok"
