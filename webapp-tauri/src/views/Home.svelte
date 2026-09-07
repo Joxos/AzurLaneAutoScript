@@ -114,7 +114,7 @@ $effect(() => {
             <div class="text-center text-[0.875rem] [color:darkgrey]">{t('Gui.Overview.NoTask')}</div>
           {/if}
           {#if scheduler.current}
-            <div class="my-0.5 ml-1.5 mr-2.5 grid [grid-template-columns:1fr_auto]">
+            <div class="my-0.5 ml-1.5 mr-2.5 grid items-center [grid-template-columns:1fr_auto]">
               <div>
                 <div class="mx-1 text-base font-medium [overflow-wrap:break-word]">
                   {t(`Task.${scheduler.current}.name`)}
@@ -139,7 +139,7 @@ $effect(() => {
             <div class="text-center text-[0.875rem] [color:darkgrey]">{t('Gui.Overview.NoTask')}</div>
           {/if}
           {#each pendingShown as task (task.command)}
-            <div class="my-0.5 ml-1.5 mr-2.5 grid [grid-template-columns:1fr_auto]">
+            <div class="my-0.5 ml-1.5 mr-2.5 grid items-center [grid-template-columns:1fr_auto]">
               <div>
                 <div class="mx-1 text-base font-medium [overflow-wrap:break-word]">
                   {t(`Task.${task.command}.name`)}
@@ -164,7 +164,7 @@ $effect(() => {
             <div class="text-center text-[0.875rem] [color:darkgrey]">{t('Gui.Overview.NoTask')}</div>
           {/if}
           {#each scheduler.waiting as task (task.command)}
-            <div class="my-0.5 ml-1.5 mr-2.5 grid [grid-template-columns:1fr_auto]">
+            <div class="my-0.5 ml-1.5 mr-2.5 grid items-center [grid-template-columns:1fr_auto]">
               <div>
                 <div class="mx-1 text-base font-medium [overflow-wrap:break-word]">
                   {t(`Task.${task.command}.name`)}
