@@ -278,3 +278,9 @@ webapp-tauri/.env.development
 
 # Local pnpm content-addressable store (sandbox/dev artifact)
 .pnpm-store/
+
+# Rivet agent workspace metadata (session scratch/artifacts/plans) — not part
+# of the product. AGENTS.md stays tracked (project operating rules).
+.rivet/
+.rivet-config.json
+.rivet.md
