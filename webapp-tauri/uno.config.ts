@@ -14,7 +14,18 @@ import { defineConfig, presetUno, transformerVariantGroup } from "unocss";
  * Theme colors map to the --*-v2 tokens in src/styles/theme.css; state
  * shades (hover/active) are derived from the palette with color-mix().
  * The active theme is the `data-theme` attribute on <html>.
+ *
+ * Form controls v3 (outlined): input / input-sm / select share one anatomy
+ * (border/bg/hover/focus-ring/disabled, see CONTROL_ANATOMY) and differ
+ * only in metrics and native-chrome handling (chevron etc.).
  */
+const CONTROL_ANATOMY =
+  "block h-auto w-full border border-solid border-control-line bg-control-bg " +
+  "leading-6 rounded-[var(--control-radius)] [color:var(--control-fg)] transition-colors placeholder:text-muted " +
+  "hover:bg-control-bg-hover hover:border-control-line-hover " +
+  "focus:bg-control-bg-hover focus:border-accent focus:outline-none focus:[box-shadow:var(--control-ring)] " +
+  "disabled:bg-control-bg-disabled disabled:opacity-60 disabled:cursor-not-allowed";
+
 export default defineConfig({
   presets: [presetUno()],
   transformers: [transformerVariantGroup()],
@@ -45,8 +56,6 @@ export default defineConfig({
         app: "var(--surface-app)",
         panel: "var(--surface-panel)",
         side: "var(--surface-side)",
-        insert: "var(--surface-insert)",
-        hover: "var(--surface-hover)",
         hr: "var(--surface-hr)",
         log: "var(--surface-log)",
       },
@@ -106,34 +115,15 @@ export default defineConfig({
       "[padding:var(--btn-sm-py)_var(--btn-sm-px)] [font-size:var(--text-btn-sm)] [font-weight:var(--btn-fw)] " +
       "[line-height:1.5] [font-family:var(--btn-font,inherit)] rounded-[var(--radius-btn-sm)] " +
       "transition-colors focus:outline-none focus:shadow-none disabled:opacity-65",
-    // Form control anatomy v3 (outlined). State colors come from the
-    // --control-* tokens; focus is a soft accent ring (no layout shift).
-    // Variants: append `select` for a chevron, use `input-sm` for the small
-    // sizing (Manage page).
-    input:
-      "block h-auto w-full border border-solid border-control-line bg-control-bg px-3 py-1.5 " +
-      "leading-6 rounded-[var(--control-radius)] [font-size:var(--text-input)] [font-weight:var(--input-fw,400)] " +
-      "[color:var(--control-fg)] transition-colors placeholder:text-muted " +
-      "hover:bg-control-bg-hover hover:border-control-line-hover " +
-      "focus:bg-control-bg-hover focus:border-accent focus:outline-none focus:[box-shadow:var(--control-ring)] " +
-      "disabled:bg-control-bg-disabled disabled:opacity-60 disabled:cursor-not-allowed",
-    "input-sm":
-      "block h-auto w-full border border-solid border-control-line bg-control-bg px-2 py-1 " +
-      "leading-6 rounded-[var(--control-radius)] [font-size:var(--text-input-sm)] [font-weight:var(--input-fw,400)] " +
-      "[color:var(--control-fg)] transition-colors placeholder:text-muted " +
-      "hover:bg-control-bg-hover hover:border-control-line-hover " +
-      "focus:bg-control-bg-hover focus:border-accent focus:outline-none focus:[box-shadow:var(--control-ring)] " +
-      "disabled:bg-control-bg-disabled disabled:opacity-60 disabled:cursor-not-allowed",
-    // select = input anatomy + native chrome stripped + chevron via
-    // --control-arrow (pr-8 clears the arrow lane).
+    // Form control anatomy v3 (outlined) — CONTROL_ANATOMY shared above;
+    // each variant only adds metrics/chrome. Colors stay on --control-* tokens.
+    input: `${CONTROL_ANATOMY} px-3 py-1.5 [font-size:var(--text-input)] [font-weight:var(--input-fw,400)]`,
+    "input-sm": `${CONTROL_ANATOMY} px-2 py-1 [font-size:var(--text-input-sm)] [font-weight:var(--input-fw,400)]`,
+    // select = base + native chrome stripped + chevron via --control-arrow
+    // (pr-8 clears the arrow lane).
     select:
-      "block h-auto w-full border border-solid border-control-line bg-control-bg px-3 py-1.5 " +
-      "leading-6 rounded-[var(--control-radius)] [font-size:var(--text-input)] [font-weight:var(--input-fw,400)] " +
-      "[color:var(--control-fg)] transition-colors placeholder:text-muted " +
-      "hover:bg-control-bg-hover hover:border-control-line-hover " +
-      "focus:bg-control-bg-hover focus:border-accent focus:outline-none focus:[box-shadow:var(--control-ring)] " +
-      "disabled:bg-control-bg-disabled disabled:opacity-60 disabled:cursor-not-allowed " +
-      "appearance-none [-webkit-appearance:none] pr-8 bg-no-repeat " +
+      `${CONTROL_ANATOMY} px-3 py-1.5 pr-8 [font-size:var(--text-input)] [font-weight:var(--input-fw,400)] ` +
+      "appearance-none [-webkit-appearance:none] bg-no-repeat " +
       "[background-image:var(--control-arrow)] [background-position:right_0.6rem_center] [background-size:0.85em]",
     // Bordered surface (sections, cards, bars).
     panel: "border border-solid border-line-panel bg-surface-panel",

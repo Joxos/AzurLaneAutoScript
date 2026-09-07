@@ -208,7 +208,7 @@ const SELECT = "select [margin-top:.125rem]";
             disabled={field.def.display === 'disabled'}
             onchange={(e) => emitSave(field, (e.currentTarget as HTMLTextAreaElement).value)}></textarea>
         {:else if field.def.type === 'state' || field.def.type === 'lock'}
-          <div class="h-auto truncate border border-b-0 border-solid border-line-control px-2 {stateClass(field)}">
+          <div class="h-auto truncate border border-b-0 border-solid border-control-line px-2 {stateClass(field)}">
             {stateText(field)}
           </div>
         {:else}

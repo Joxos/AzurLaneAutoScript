@@ -23,8 +23,6 @@
   --surface-app: #f9f9f9;
   --surface-panel: #ffffff;
   --surface-side: #ffffff;
-  --surface-insert: #ffffff; /* form control background */
-  --surface-hover: #ffffff; /* form control focus background */
   --surface-hr: #eaecef;
   --surface-log: #16191d;
   --log-fg: #d4d9de;
@@ -145,8 +143,6 @@
   --surface-app: #36393f;
   --surface-panel: #2f3136;
   --surface-side: #202225;
-  --surface-insert: #000000;
-  --surface-hover: #2f3136;
   --surface-hr: #40444b;
   --body-bg: #0d1117;
   --header-bg: #202225;
@@ -252,6 +248,8 @@
   --btn-fg-hover: #ffffff;
   --radius-btn: 0.4rem;
   --radius-btn-sm: 0.3rem;
+  /* control radius follows this theme's soft button corners */
+  --control-radius: 0.4rem;
   --btn-font: Montserrat, -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
     sans-serif;
 }
@@ -285,6 +283,8 @@
   --btn-px: 0.5rem;
   --radius-btn: 0;
   --radius-btn-sm: 0;
+  /* control radius follows yeti's sharp corners */
+  --control-radius: 0;
   --text-btn-sm: 0.825rem;
   --text-input: 0.9375rem;
   --text-input-sm: 0.825rem;
@@ -320,6 +320,8 @@
   --btn-bw: 2px;
   --radius-btn: 255px 25px 225px 25px/25px 225px 25px 255px;
   --radius-btn-sm: 255px 25px 225px 25px/25px 225px 25px 255px;
+  /* control radius follows sketchy's hand-drawn irregular corners */
+  --control-radius: 255px 25px 225px 25px/25px 225px 25px 255px;
   --text-input-sm: 0.875rem;
   --input-fw: 700;
 }
