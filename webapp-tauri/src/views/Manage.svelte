@@ -160,11 +160,7 @@ $effect(() => {
     </table>
 
     <div class="mt-3 flex items-center gap-2">
-      <input
-        class="block h-auto w-full max-w-[220px] rounded-none border-0 bg-surface-insert px-2 py-1 text-[var(--text-input-sm)] leading-6 [color:var(--input-fg)] focus:bg-surface-hover focus:outline-none"
-        placeholder="config name"
-        bind:value={newName}
-      />
+      <input class="input-sm max-w-[220px]" placeholder="config name" bind:value={newName} />
       <button class="btn-sm border-success bg-success text-white hover:bg-success-hover" disabled={!newName} onclick={createConfig}>
         {t('Gui.AppManage.New')}
       </button>

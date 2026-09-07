@@ -95,7 +95,7 @@ $effect(() => {
       <div class="panel m-1.25 flex items-center justify-between p-2.5 font-medium">
         <span class="mx-2 my-auto text-[1.25rem]">{t('Gui.Overview.Scheduler')}</span>
         <button
-          class="btn m-0 rounded-none border-toggle"
+          class="btn m-0 border-toggle"
           class:bg-accent={!instanceAlive}
           class:bg-surface-app={instanceAlive}
           class:text-white={!instanceAlive}
@@ -123,7 +123,7 @@ $effect(() => {
                   {currentTask?.next_run ?? ''}
                 </div>
               </div>
-              <button class="btn m-0 rounded-none border-toggle bg-surface-app text-body" onclick={() => goSettings(scheduler.current!)}>
+              <button class="btn m-0 border-toggle bg-surface-app text-body" onclick={() => goSettings(scheduler.current!)}>
                 {t('Gui.Button.Setting')}
               </button>
             </div>
@@ -148,7 +148,7 @@ $effect(() => {
                   {task.next_run}
                 </div>
               </div>
-              <button class="btn m-0 rounded-none border-toggle bg-surface-app text-body" onclick={() => goSettings(task.command)}>
+              <button class="btn m-0 border-toggle bg-surface-app text-body" onclick={() => goSettings(task.command)}>
                 {t('Gui.Button.Setting')}
               </button>
             </div>
@@ -173,7 +173,7 @@ $effect(() => {
                   {task.next_run}
                 </div>
               </div>
-              <button class="btn m-0 rounded-none border-toggle bg-surface-app text-body" onclick={() => goSettings(task.command)}>
+              <button class="btn m-0 border-toggle bg-surface-app text-body" onclick={() => goSettings(task.command)}>
                 {t('Gui.Button.Setting')}
               </button>
             </div>
@@ -188,7 +188,7 @@ $effect(() => {
         <span class="mx-2 my-auto text-[1.25rem]">{t('Gui.Overview.Log')}</span>
         <div class="grid [grid-auto-flow:column]">
           <button
-            class="btn m-0 rounded-none border-toggle"
+            class="btn m-0 border-toggle"
             class:bg-accent={keepBottom}
             class:bg-surface-app={!keepBottom}
             class:text-white={keepBottom}

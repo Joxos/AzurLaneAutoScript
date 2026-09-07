@@ -111,7 +111,7 @@ $effect(() => {
         <div class="panel col-[2] my-[0.3rem] flex items-center gap-2 p-2.4">
           <span>{t('Gui.Overview.Scheduler')}</span>
           <button
-            class="btn m-0 rounded-none border-toggle"
+            class="btn m-0 border-toggle"
             class:bg-accent={!toolAlive}
             class:bg-surface-app={toolAlive}
             class:text-white={!toolAlive}
@@ -122,7 +122,7 @@ $effect(() => {
           </button>
           <span class="ms-auto">{t('Gui.Overview.Log')}</span>
           <button
-            class="btn m-0 rounded-none border-toggle"
+            class="btn m-0 border-toggle"
             class:bg-accent={toolKeepBottom}
             class:bg-surface-app={!toolKeepBottom}
             class:text-white={toolKeepBottom}

@@ -103,6 +103,23 @@
   --w-form-col: 13rem;
   --space-section: 7.75rem;
 
+  /* ---- form controls v3 (outlined) ----
+     Border+radius give inputs/selects/textareas their shape; the flat
+     fill is gone. Focus is a soft accent ring (box-shadow, no layout
+     shift). Selects draw their chevron via --control-arrow. */
+  --control-bg: #ffffff;
+  --control-bg-hover: #f2f3f5;
+  --control-bg-disabled: #e9eaec;
+  --control-line: #c7cbd1;
+  --control-line-hover: #a9aeb6;
+  --control-radius: 0.25rem;
+  --control-fg: var(--input-fg);
+  --control-fg-disabled: var(--gray-500);
+  /* focus ring: accent at 22% alpha, 3px halo */
+  --control-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  /* chevron-down for selects — light shell (matches --input-fg tone) */
+  --control-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%236c757d' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+
   /* ---- shell: light ANSI log palette ---- */
   --ansi-black: #000000;
   --ansi-red: #cd3131;
@@ -175,6 +192,20 @@
   --btn-fw: 400;
   --text-btn-sm: 0.825rem;
   --text-input-sm: 0.875rem;
+
+  /* form controls v3 (outlined) — dark shell */
+  --control-bg: #1f2224;
+  --control-bg-hover: #282b2e;
+  --control-bg-disabled: #2a2d30;
+  --control-line: #474c52;
+  --control-line-hover: #626a72;
+  --control-radius: 0.25rem;
+  --control-fg: var(--input-fg);
+  --control-fg-disabled: var(--gray-500);
+  --control-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+  /* chevron-down for selects — dark shell */
+  --control-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23adb5bd' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+
   --ansi-black: #000000;
   --ansi-red: #cd3131;
   --ansi-green: #0dbc79;

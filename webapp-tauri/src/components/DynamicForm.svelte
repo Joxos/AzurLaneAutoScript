@@ -139,11 +139,12 @@ function rowClass(field: Field): string {
     : "my-[0.125rem]";
 }
 
-/** every form control shares this skeleton; selects/checkboxes add extras.
- *  The 2px top margin reproduces the old .form-control's margin-top (it
- *  participates in the row height in both implementations). */
-const CONTROL =
-  "block h-auto w-full rounded-none border-0 bg-surface-insert px-3 py-1.5 [margin-top:.125rem] leading-6 [font-size:var(--text-input)] [font-weight:var(--input-fw,400)] [color:var(--input-fg)] focus:bg-surface-hover focus:outline-none";
+/** every form control shares the `input`/`select` anatomy shortcuts
+ *  (uno.config.ts) plus a 2px top margin that reproduces the old
+ *  .form-control's margin-top (it participates in the row height in
+ *  both implementations). */
+const INPUT = "input [margin-top:.125rem]";
+const SELECT = "select [margin-top:.125rem]";
 </script>
 
 <div>
@@ -165,7 +166,7 @@ const CONTROL =
       <div class="m-0 pr-1">
         {#if field.def.type === 'select'}
           <select
-            class="{CONTROL} appearance-none [-webkit-appearance:none] [-moz-appearance:none] pr-4 [background-position:right,center] [background-repeat:no-repeat]"
+            class={SELECT}
             value={String(currentValue(field) ?? '')}
             disabled={field.def.display === 'disabled'}
             onchange={(e) => emitSave(field, (e.currentTarget as HTMLSelectElement).value)}
@@ -186,7 +187,7 @@ const CONTROL =
           </div>
         {:else if field.def.type === 'datetime'}
           <input
-            class={CONTROL}
+            class={INPUT}
             type="datetime-local"
             value={toLocal(currentValue(field))}
             disabled={field.def.display === 'disabled'}
@@ -194,14 +195,14 @@ const CONTROL =
           />
         {:else if field.def.type === 'storage'}
           <textarea
-            class={CONTROL}
+            class={INPUT}
             rows="4"
             value={storageText(field)}
             disabled={field.def.display === 'disabled'}
             onchange={(e) => emitSave(field, parseStorage((e.currentTarget as HTMLTextAreaElement).value))}></textarea>
         {:else if field.def.type === 'textarea'}
           <textarea
-            class={CONTROL}
+            class={INPUT}
             rows="3"
             value={String(currentValue(field) ?? '')}
             disabled={field.def.display === 'disabled'}
@@ -212,7 +213,7 @@ const CONTROL =
           </div>
         {:else}
           <input
-            class={CONTROL}
+            class={INPUT}
             type={isNumber(field) ? 'number' : 'text'}
             value={String(currentValue(field) ?? '')}
             disabled={field.def.display === 'disabled'}
