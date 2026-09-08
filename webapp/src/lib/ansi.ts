@@ -1,0 +1,109 @@
+/**
+ * Convert ANSI SGR-colored text (as produced by rich with color_system='standard')
+ * to theme-aware HTML. The text is HTML-escaped first, so the result is safe to
+ * render via {@html}.
+ *
+ * Color codes 30-37/40-47/90-97 map to the --ansi-* CSS custom properties
+ * defined in css/alas-shell.css (dark palette, the pywebio-era
+ * DARK_TERMINAL_THEME) and overridden by css/light-alas-shell.css
+ * (LIGHT_TERMINAL_THEME) for light themes. Each reference carries the dark
+ * value as a fallback so the mapping degrades gracefully if the theme CSS
+ * has not loaded yet.
+ *
+ * The previous mapping used var(--bs-primary) etc., but the bundled
+ * Bootstrap themes are pre-CSS-variable versions that never define those
+ * properties, so level/time colors silently resolved to nothing.
+ */
+const SGR_FG: Record<string, string> = {
+  "30": "var(--ansi-black, #000000)",
+  "31": "var(--ansi-red, #cd3131)",
+  "32": "var(--ansi-green, #0dbc79)",
+  "33": "var(--ansi-yellow, #e5e510)",
+  "34": "var(--ansi-blue, #2472c8)",
+  "35": "var(--ansi-magenta, #bc3fbc)",
+  "36": "var(--ansi-cyan, #11a8cd)",
+  "37": "var(--ansi-white, #e5e5e5)",
+  "90": "var(--ansi-bright-black, #666666)",
+  "91": "var(--ansi-bright-red, #f14c4c)",
+  "92": "var(--ansi-bright-green, #23d18b)",
+  "93": "var(--ansi-bright-yellow, #f5f543)",
+  "94": "var(--ansi-bright-blue, #3b8eea)",
+  "95": "var(--ansi-bright-magenta, #d670d6)",
+  "96": "var(--ansi-bright-cyan, #29b8db)",
+  "97": "var(--ansi-bright-white, #e5e5e5)",
+};
+
+const SGR_BG: Record<string, string> = {
+  "40": "var(--ansi-black, #000000)",
+  "41": "var(--ansi-red, #cd3131)",
+  "42": "var(--ansi-green, #0dbc79)",
+  "43": "var(--ansi-yellow, #e5e510)",
+  "44": "var(--ansi-blue, #2472c8)",
+  "45": "var(--ansi-magenta, #bc3fbc)",
+  "46": "var(--ansi-cyan, #11a8cd)",
+  "47": "var(--ansi-white, #e5e5e5)",
+};
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
+ * Wide characters (CJK ideographs, fullwidth forms, ...) must occupy exactly
+ * two monospace cells for the rich traceback boxes to stay aligned. The
+ * browser's CJK font fallback renders them at ~1em while two mono cells are
+ * ~1.1em, which drifts the box borders by ~1px per character. Wrapping each
+ * wide char in a fixed-width span (2ch of the log font) pins them to two
+ * cells regardless of which font renders them.
+ *
+ * Pinning is restricted to lines that actually contain box-drawing
+ * characters (tracebacks, tables): pinning every CJK char of every line
+ * created tens of thousands of DOM spans for an 800-line buffer and froze
+ * the page during high-rate log streaming. Regular log lines need no
+ * alignment and stay span-free.
+ */
+const CJK_RE =
+  /([\u1100-\u115f\u2e80-\u303e\u3041-\u33ff\u3400-\u4dbf\u4e00-\u9fff\ua000-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6])/g;
+
+const BOX_LINE_RE = /[│└├─┐┌┘┃║═┬┴┤┼]/;
+
+function pinWideChars(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => (BOX_LINE_RE.test(line) ? line.replace(CJK_RE, '<span class="cjk">$1</span>') : line))
+    .join("\n");
+}
+
+export function ansiToHtml(text: string): string {
+  const escaped = pinWideChars(escapeHtml(text));
+  let out = "";
+  let pendingClose = false;
+  const re = /\x1b\[([0-9;]*)m/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(escaped))) {
+    out += escaped.slice(last, match.index);
+    if (pendingClose) {
+      out += "</span>";
+      pendingClose = false;
+    }
+    const codes = match[1] ? match[1].split(";") : ["0"];
+    const styles: string[] = [];
+    for (const code of codes) {
+      if (code === "0" || code === "") continue;
+      if (code === "1") styles.push("font-weight:700");
+      else if (code === "3") styles.push("font-style:italic");
+      else if (code === "4") styles.push("text-decoration:underline");
+      else if (SGR_FG[code]) styles.push(`color:${SGR_FG[code]}`);
+      else if (SGR_BG[code]) styles.push(`background:${SGR_BG[code]}`);
+    }
+    if (styles.length) {
+      out += `<span style="${styles.join(";")}">`;
+      pendingClose = true;
+    }
+    last = re.lastIndex;
+  }
+  out += escaped.slice(last);
+  if (pendingClose) out += "</span>";
+  return out;
+}

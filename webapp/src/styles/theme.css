@@ -1,0 +1,327 @@
+/*
+ * Alas design tokens v2 — semantic roles, not upstream-theme copies.
+ *
+ * Two layers:
+ *  - raw palette (--color-primary/success/info/danger, --gray-*) — one set
+ *    per Bootswatch-inspired theme;
+ *  - semantic roles (--surface-*, --line-*, --text-*, --accent, --status-*,
+ *    --ansi-*, metrics) — what components actually consume.
+ *
+ * Button hover/active states are DERIVED with color-mix() from the palette
+ * (see uno.config.ts), so themes no longer hand-carry three shades per
+ * variant. Values that intentionally differ from the old hand-tuned shades
+ * are logged in .qoder/doc/UNOCSS-REWRITE.md §5 (visual-equivalence
+ * register).
+ *
+ * The active theme is the `data-theme` attribute on <html>.
+ */
+
+/* ============================== light shell + default palette ============================== */
+
+:root {
+  /* ---- shell (light variant) ---- */
+  --surface-app: #f9f9f9;
+  --surface-panel: #ffffff;
+  --surface-side: #ffffff;
+  --surface-hr: #eaecef;
+  --surface-log: #16191d;
+  --log-fg: #d4d9de;
+  --body-bg: #ffffff;
+  --header-bg: transparent;
+  --header-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+  --header-line: none;
+  --aside-line: 1px solid lightgrey;
+  --menu-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+  --menu-line: none;
+  --icon-fill: #2c2c2c;
+  --line-panel: lightgrey;
+  --line-control: #6c757d;
+  --line-task: #d0d0d0;
+  --toggle-line: lightgrey;
+  --text-body: #212529;
+  --text-muted: #777777;
+  --accent: #4e4c97;
+  --accent-check: #7a77bb; /* constant in both shells, matching the old light shell */
+  --status-idle: #8a939c;
+  --status-running: #4cd07d;
+  --status-warning: #e6a23c;
+  --status-updating: #4c9aff;
+
+  /* ---- palette: default (themes "default" and "light") ---- */
+  --color-primary: #007bff;
+  --color-success: #28a745;
+  --color-info: #17a2b8;
+  --color-danger: #c42b1c;
+  --color-link: #007bff;
+  --color-link-hover: #0056b3;
+  --gray-300: #dee2e6;
+  --gray-400: #ced4da;
+  --gray-500: #adb5bd;
+  --gray-600: #6c757d;
+  --gray-800: rgba(0, 0, 0, 0.12);
+  --line-soft: rgba(0, 0, 0, 0.1);
+  --hr-line: 1px solid rgba(0, 0, 0, 0.1);
+  --line-table: 1px solid #dee2e6;
+  --line-table-strong: 2px solid #dee2e6;
+  --table-cell-bg: transparent;
+  --input-fg: #495057;
+  --text-danger: #dc3545;
+  --text-success: #28a745;
+  --danger-fg: #721c24;
+  --danger-bg: #f8d7da;
+  --danger-line: #f5c6cb;
+  --alert-fs: inherit;
+  --alert-fw: inherit;
+  --alert-bw: 1px;
+  --alert-radius: 0.25rem;
+
+  /* ---- metrics ---- */
+  --body-fs: 1rem;
+  --body-fw: 400;
+  --btn-fg: #212529;
+  --btn-fg-hover: #212529;
+  --text-btn: 1rem;
+  --btn-fw: 400;
+  --btn-py: 0.375rem;
+  --btn-px: 0.75rem;
+  --btn-bw: 1px;
+  --radius-btn: 0.25rem;
+  --text-btn-sm: 0.875rem;
+  --radius-btn-sm: 0.2rem;
+  --btn-sm-py: 0.25rem;
+  --btn-sm-px: 0.5rem;
+  --btn-font: inherit;
+  --text-input: 1rem;
+  --input-fw: 400;
+  --text-input-sm: 0.875rem;
+  --font-mono: Menlo, consolas, "DejaVu Sans Mono", "Courier New", monospace;
+  --h-header: 50px;
+  --w-aside: 4rem;
+  --w-menu: 12rem;
+  --w-form-col: 13rem;
+  --space-section: 7.75rem;
+
+  /* ---- form controls v3 (outlined) ----
+     Border+radius give inputs/selects/textareas their shape; the flat
+     fill is gone. Focus is a soft accent ring (box-shadow, no layout
+     shift). Selects draw their chevron via --control-arrow. */
+  --control-bg: #ffffff;
+  --control-bg-hover: #f2f3f5;
+  --control-bg-disabled: #e9eaec;
+  --control-line: #c7cbd1;
+  --control-line-hover: #a9aeb6;
+  --control-radius: 0.25rem;
+  --control-fg: var(--input-fg);
+  --control-fg-disabled: var(--gray-500);
+  /* focus ring: accent at 22% alpha, 3px halo */
+  --control-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  /* chevron-down for selects — light shell (matches --input-fg tone) */
+  --control-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%236c757d' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+
+  /* ---- shell: light ANSI log palette ---- */
+  --ansi-black: #000000;
+  --ansi-red: #cd3131;
+  --ansi-green: #00bc00;
+  --ansi-yellow: #949800;
+  --ansi-blue: #0451a5;
+  --ansi-magenta: #bc05bc;
+  --ansi-cyan: #0598bc;
+  --ansi-white: #555555;
+  --ansi-bright-black: #666666;
+  --ansi-bright-red: #cd3131;
+  --ansi-bright-green: #14ce14;
+  --ansi-bright-yellow: #b5ba00;
+  --ansi-bright-blue: #0451a5;
+  --ansi-bright-magenta: #bc05bc;
+  --ansi-bright-cyan: #0598bc;
+  --ansi-bright-white: #a5a5a5;
+}
+
+/* ============================== theme: dark ============================== */
+
+:root[data-theme="dark"] {
+  --surface-app: #36393f;
+  --surface-panel: #2f3136;
+  --surface-side: #202225;
+  --surface-hr: #40444b;
+  --body-bg: #0d1117;
+  --header-bg: #202225;
+  --header-shadow: none;
+  --header-line: 1px solid #36393f;
+  --aside-line: 1px solid #21262d;
+  --menu-shadow: none;
+  --menu-line: 1px solid #21262d;
+  --icon-fill: #c9d1d9;
+  --line-panel: #21262d;
+  --line-control: #6c757d;
+  --line-task: #adb5bd;
+  --toggle-line: #202225;
+  --text-body: #d3d3d3;
+  --text-muted: #adb5bd;
+  --accent: #7a77bb;
+  --color-primary: #375a7f;
+  --color-success: #00bc8c;
+  --color-info: #3498db;
+  --color-link: #adadad;
+  --color-link-hover: #878787;
+  --gray-300: #343a40;
+  --gray-400: #6c757d;
+  --gray-500: #adb5bd;
+  --gray-600: #6c757d;
+  --gray-800: rgba(0, 0, 0, 0.12);
+  --line-soft: rgba(255, 255, 255, 0.1);
+  --hr-line: 1px solid rgba(255, 255, 255, 0.1);
+  --line-table: 1px solid #343a40;
+  --line-table-strong: 2px solid #343a40;
+  --table-cell-bg: transparent;
+  --input-fg: #dee2e6;
+  --text-danger: #dc3545;
+  --text-success: #28a745;
+  --danger-fg: #721c24;
+  --danger-bg: #f8d7da;
+  --danger-line: #f5c6cb;
+  --body-fs: 0.9375rem;
+  --body-fw: 400;
+  --btn-fg: #ffffff;
+  --btn-fg-hover: #ffffff;
+  --text-btn: 0.9375rem;
+  --btn-fw: 400;
+  --text-btn-sm: 0.825rem;
+  --text-input-sm: 0.875rem;
+
+  /* form controls v3 (outlined) — dark shell */
+  --control-bg: #1f2224;
+  --control-bg-hover: #282b2e;
+  --control-bg-disabled: #2a2d30;
+  --control-line: #474c52;
+  --control-line-hover: #626a72;
+  --control-radius: 0.25rem;
+  --control-fg: var(--input-fg);
+  --control-fg-disabled: var(--gray-500);
+  --control-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+  /* chevron-down for selects — dark shell */
+  --control-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23adb5bd' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+
+  --ansi-black: #000000;
+  --ansi-red: #cd3131;
+  --ansi-green: #0dbc79;
+  --ansi-yellow: #e5e510;
+  --ansi-blue: #2472c8;
+  --ansi-magenta: #bc3fbc;
+  --ansi-cyan: #11a8cd;
+  --ansi-white: #e5e5e5;
+  --ansi-bright-black: #666666;
+  --ansi-bright-red: #f14c4c;
+  --ansi-bright-green: #23d18b;
+  --ansi-bright-yellow: #f5f543;
+  --ansi-bright-blue: #3b8eea;
+  --ansi-bright-magenta: #d670d6;
+  --ansi-bright-cyan: #29b8db;
+  --ansi-bright-white: #e5e5e5;
+}
+
+/* ============================== theme: minty ============================== */
+
+:root[data-theme="minty"] {
+  --color-primary: #78c2ad;
+  --color-success: #56cc9d;
+  --color-info: #6cc3d5;
+  --color-link: #78c2ad;
+  --color-link-hover: #4aa48a;
+  --gray-500: #adb5bd;
+  --gray-600: #6c757d;
+  --line-soft: rgba(0, 0, 0, 0.05);
+  --hr-line: 1px solid rgba(0, 0, 0, 0.1);
+  --line-table: 1px solid rgba(0, 0, 0, 0.05);
+  --line-table-strong: 2px solid rgba(0, 0, 0, 0.05);
+  --input-fg: #5a5a5a;
+  --text-body: #888888;
+  --text-muted: #888888;
+  --text-danger: #ff7851;
+  --text-success: #56cc9d;
+  --danger-fg: #853e2a;
+  --danger-bg: #ff7851;
+  --danger-line: #ffd9ce;
+  --alert-bw: 1px;
+  --alert-radius: 0.4rem;
+  --btn-fg: #ffffff;
+  --btn-fg-hover: #ffffff;
+  --radius-btn: 0.4rem;
+  --radius-btn-sm: 0.3rem;
+  /* control radius follows this theme's soft button corners */
+  --control-radius: 0.4rem;
+  --btn-font: Montserrat, -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+}
+
+/* ============================== theme: yeti ============================== */
+
+:root[data-theme="yeti"] {
+  --color-primary: #008cba;
+  --color-success: #43ac6a;
+  --color-info: #5bc0de;
+  --color-link: #008cba;
+  --color-link-hover: #00526e;
+  --input-fg: #495057;
+  --text-body: #222222;
+  --text-muted: #888888;
+  --text-danger: #f04124;
+  --text-success: #43ac6a;
+  --danger-fg: #7d2213;
+  --danger-bg: #f04124;
+  --danger-line: #fbcac2;
+  --alert-fs: 0.825rem;
+  --alert-fw: 300;
+  --alert-bw: 1px;
+  --alert-radius: 0;
+  --body-fs: 0.9375rem;
+  --body-fw: 400;
+  --btn-fg: #222222;
+  --btn-fg-hover: #222222;
+  --text-btn: 0.9375rem;
+  --btn-fw: 300;
+  --btn-px: 0.5rem;
+  --radius-btn: 0;
+  --radius-btn-sm: 0;
+  /* control radius follows yeti's sharp corners */
+  --control-radius: 0;
+  --text-btn-sm: 0.825rem;
+  --text-input: 0.9375rem;
+  --text-input-sm: 0.825rem;
+}
+
+/* ============================== theme: sketchy ============================== */
+
+:root[data-theme="sketchy"] {
+  --color-primary: #333333;
+  --color-success: #28a745;
+  --color-info: #17a2b8;
+  --color-link: #333333;
+  --color-link-hover: #0d0d0d;
+  --line-soft: rgba(0, 0, 0, 0.1);
+  --hr-line: 2px solid rgba(0, 0, 0, 0.1);
+  --line-table: 2px solid #333333;
+  --line-table-strong: 4px solid #333333;
+  --table-cell-bg: #ffffff;
+  --input-fg: #555555;
+  --text-body: #212529;
+  --text-muted: #868e96;
+  --text-danger: #dc3545;
+  --text-success: #28a745;
+  --danger-fg: #721c24;
+  --danger-bg: #f8d7da;
+  --danger-line: #f5c6cb;
+  --alert-bw: 2px;
+  --alert-radius: 255px 25px 225px 25px/25px 225px 25px 255px;
+  --body-fs: 1rem;
+  --body-fw: 700;
+  --btn-fg: #212529;
+  --btn-fg-hover: #212529;
+  --btn-bw: 2px;
+  --radius-btn: 255px 25px 225px 25px/25px 225px 25px 255px;
+  --radius-btn-sm: 255px 25px 225px 25px/25px 225px 25px 255px;
+  /* control radius follows sketchy's hand-drawn irregular corners */
+  --control-radius: 255px 25px 225px 25px/25px 225px 25px 255px;
+  --text-input-sm: 0.875rem;
+  --input-fw: 700;
+}
