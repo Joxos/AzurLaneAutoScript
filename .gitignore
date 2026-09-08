@@ -266,9 +266,9 @@ pyrightconfig.json
 
 # Tauri shell removed 2026-09-02 (desktop flavor now uses pywebview, see
 # module/cli/run.py); recoverable from git history.
-webapp-tauri/node_modules/
-webapp-tauri/dist/
-webapp-tauri/.env.development
+webapp/node_modules/
+webapp/dist/
+webapp/.env.development
 
 # Runtime adb copied from adbutils (dev environment)
 /bin/adb/

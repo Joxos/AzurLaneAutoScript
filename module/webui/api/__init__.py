@@ -2,7 +2,7 @@
 
 Routes live in the `routers` package, split by domain; request/response
 models live in `models.py`; shared helpers in `helpers.py`. The app serves
-the production SPA build from webapp-tauri/dist and streams status/log
+the production SPA build from webapp/dist and streams status/log
 updates over /sse (server-sent events).
 """
 
@@ -59,7 +59,7 @@ def _add_dev_cors(app: FastAPI):
 
     Production serves the SPA from this same process (same origin), so CORS
     is off by default. Set ALAS_CORS_ORIGINS to a comma-separated origin
-    list (e.g. "http://localhost:1420") when running the webapp-tauri vite
+    list (e.g. "http://localhost:1420") when running the webapp vite
     dev server against this backend.
     """
     origins = [o.strip() for o in os.environ.get("ALAS_CORS_ORIGINS", "").split(",") if o.strip()]
@@ -86,7 +86,7 @@ def _add_home_redirect(app: FastAPI):
     "/" instead of the default JSON 404; browsers re-apply the original
     #fragment to the redirect target, so hash routes survive.
 
-    Loop guard: when the SPA build is missing (webapp-tauri/dist not
+    Loop guard: when the SPA build is missing (webapp/dist not
     built), "/" itself 404s — return the JSON 404 then instead of
     redirecting, to avoid a redirect loop.
     """
@@ -167,8 +167,8 @@ def create_api_app() -> FastAPI:
     from fastapi.staticfiles import StaticFiles
 
     repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    vue_dist = os.path.join(repo_root, "webapp-tauri", "dist")
-    if os.path.isdir(vue_dist):
-        app.mount("/", StaticFiles(directory=vue_dist, html=True), name="frontend")
+    web_dist = os.path.join(repo_root, "webapp", "dist")
+    if os.path.isdir(web_dist):
+        app.mount("/", StaticFiles(directory=web_dist, html=True), name="frontend")
 
     return app

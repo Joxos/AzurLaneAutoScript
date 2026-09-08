@@ -33,7 +33,7 @@ SKIP_DIRS = {
     ".qoder",
     ".ropeproject",
     "node_modules",
-    "webapp-tauri",
+    "webapp",
     "__pycache__",
 }
 

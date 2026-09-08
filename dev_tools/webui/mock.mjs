@@ -1,7 +1,7 @@
 /**
  * Minimal mock backend for visual regression captures of the SPA shell.
  *
- * Serves webapp-tauri/dist statically and answers the REST/SSE endpoints the
+ * Serves webapp/dist statically and answers the REST/SSE endpoints the
  * frontend calls, with realistic sample content (menu, schema, scheduler
  * rows, configs) so every page renders meaningfully without the Python
  * backend.
@@ -17,7 +17,7 @@ import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(fileURLToPath(import.meta.url), "..", "..", "..");
-const DIST = join(ROOT, "webapp-tauri", "dist");
+const DIST = join(ROOT, "webapp", "dist");
 const PORT = Number(process.argv[2] ?? 8117);
 const THEME_FILE = join(ROOT, "dev_tools", "webui", "mock-theme.txt");
 const LANG = process.env.MOCK_LANG ?? "zh-CN";

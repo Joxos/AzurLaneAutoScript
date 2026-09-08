@@ -7,7 +7,7 @@ def get_resource_root():
 
     Frozen (PyInstaller onedir sidecar): the directory containing the
     executable - the bundle carries module/config, module/submodule and
-    webapp-tauri/dist relative to it.
+    webapp/dist relative to it.
     Source checkout: the repository root.
 
     The process CWD is the writable user data directory (the repo in a

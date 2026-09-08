@@ -48,7 +48,7 @@ def render_log(renderable) -> str:
 
     `no_color=False` + explicit `color_system` bypass the NO_COLOR env var so
     output is deterministic; the frontend converts the ANSI SGR codes to
-    theme-aware HTML (see webapp-tauri/src/lib/ansi.ts). WEB_THEME restores
+    theme-aware HTML (see webapp/src/lib/ansi.ts). WEB_THEME restores
     the `web.*` highlight spans (paths/booleans/braces) produced by the func
     stream; rich's Theme merges it over the default styles, so `log.time` and
     `logging.level.*` keep resolving too.

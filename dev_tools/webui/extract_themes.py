@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-CSS_DIR = ROOT / "webapp-tauri" / "public" / "css"
+CSS_DIR = ROOT / "webapp" / "public" / "css"
 OUT = ROOT / "dev_tools" / "webui" / "theme-extract.json"
 
 THEMES = ["default", "dark", "minty", "yeti", "sketchy"]

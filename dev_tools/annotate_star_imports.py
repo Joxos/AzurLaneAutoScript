@@ -61,7 +61,7 @@ def main():
 
     total = []
     for py in sorted(ROOT.rglob("*.py")):
-        if any(x in py.parts for x in ("__pycache__", ".venv", "node_modules", ".pnpm-store", "webapp-tauri", ".git")):
+        if any(x in py.parts for x in ("__pycache__", ".venv", "node_modules", ".pnpm-store", "webapp", ".git")):
             continue
         # Match against the repo-relative path so the top-level exclusion works
         rel = py.relative_to(ROOT)

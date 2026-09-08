@@ -45,9 +45,9 @@ def doctor() -> None:
         check(f"module.{mod}", _probe(mod))
 
     assets = REPO_ROOT / "assets"
-    webapp = REPO_ROOT / "webapp-tauri"
+    webapp = REPO_ROOT / "webapp"
     check("dir.assets", assets.is_dir())
-    check("dir.webapp-tauri", webapp.is_dir())
+    check("dir.webapp", webapp.is_dir())
     check("dir.frontend-dist", (webapp / "dist").is_dir(), "(build with `alas build frontend`)")
 
     if not ok:

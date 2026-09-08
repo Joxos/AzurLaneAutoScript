@@ -20,7 +20,7 @@ root = os.path.abspath(os.path.join(SPECPATH, "..", ".."))
 
 # Anchor the output locations to the repo root. PyInstaller otherwise
 # defaults distpath/workpath to the *current working directory*, so running
-# the spec from webapp-tauri/ (pnpm build:sidecar) or the repo root (CI)
+# the spec from webapp/ (pnpm build:sidecar) or the repo root (CI)
 # would place artifacts in different spots and tauri-build's resource check
 # for ../../dist/alas-backend (relative to src-tauri/) would fail again.
 CONF["distpath"] = os.path.join(root, "dist")
@@ -36,9 +36,9 @@ datas = [
     (os.path.join(root, "module/config"), "module/config"),
     (os.path.join(root, "module/submodule"), "module/submodule"),
     # Production SPA build served by module/webui/api (StaticFiles at "/").
-    # Built with `pnpm build` in webapp-tauri/; keep the tree layout because
-    # the backend resolves webapp-tauri/dist relative to the repo root.
-    (os.path.join(root, "webapp-tauri/dist"), "webapp-tauri/dist"),
+    # Built with `pnpm build` in webapp/; keep the tree layout because
+    # the backend resolves webapp/dist relative to the repo root.
+    (os.path.join(root, "webapp/dist"), "webapp/dist"),
 ]
 
 binaries = []

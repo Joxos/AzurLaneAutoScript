@@ -44,7 +44,7 @@ jobs:
         run: uv sync --frozen --no-group dev
 
       - name: Build frontend
-        working-directory: webapp-tauri
+        working-directory: webapp
         run: |
           pnpm install --frozen-lockfile
           pnpm build

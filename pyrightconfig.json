@@ -7,7 +7,7 @@
     "submodule",
     "config",
     ".venv",
-    "webapp-tauri",
+    "webapp",
     ".qoder",
     ".ropeproject"
   ],

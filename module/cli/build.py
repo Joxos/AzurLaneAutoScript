@@ -10,7 +10,7 @@ from pathlib import Path
 from module.logger import logger
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-WEBAPP_DIR = REPO_ROOT / "webapp-tauri"
+WEBAPP_DIR = REPO_ROOT / "webapp"
 
 
 def _run(cmd: list[str], cwd: Path) -> int:
@@ -22,13 +22,13 @@ def _run(cmd: list[str], cwd: Path) -> int:
 
 
 def frontend() -> None:
-    """Build the Svelte SPA (pnpm build) into webapp-tauri/dist.
+    """Build the Svelte SPA (pnpm build) into webapp/dist.
 
     The FastAPI backend serves that dist directory directly, so after this
     command `alas run web` serves the UI without any other packaging step.
     """
     if not WEBAPP_DIR.is_dir():
-        logger.error(f"webapp-tauri not found at {WEBAPP_DIR}")
+        logger.error(f"webapp not found at {WEBAPP_DIR}")
         raise SystemExit(1)
     pnpm = shutil.which("pnpm")
     if pnpm is None:

@@ -82,7 +82,7 @@ def run_desktop(
 
 @build_app.command("frontend")
 def build_frontend() -> None:
-    """Build the Svelte SPA into webapp-tauri/dist."""
+    """Build the Svelte SPA into webapp/dist."""
     from module.cli.build import frontend as _impl
 
     _impl()

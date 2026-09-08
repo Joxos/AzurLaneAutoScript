@@ -13,7 +13,7 @@ import pytest
 
 from module.webui.api import create_api_app
 
-DIST_BUILT = os.path.isfile(os.path.join("webapp-tauri", "dist", "index.html"))
+DIST_BUILT = os.path.isfile(os.path.join("webapp", "dist", "index.html"))
 
 
 @pytest.fixture
