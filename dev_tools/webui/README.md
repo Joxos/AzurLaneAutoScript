@@ -6,7 +6,7 @@ replicates the original UI pixel for pixel. Everything is dependency-free
 
 ## Layout
 
-- `mock.mjs` — mock backend for the SPA. Serves `webapp-tauri/dist` and
+- `mock.mjs` — mock backend for the SPA. Serves `webapp/dist` and
   answers the REST/SSE endpoints with realistic content (menu, schema,
   scheduler rows, configs, real zh-CN i18n) so every page renders
   meaningfully. Theme is switched at runtime by writing `mock-theme.txt`.

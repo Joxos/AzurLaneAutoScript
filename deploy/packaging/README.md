@@ -10,7 +10,7 @@
   └─ alas-backend/            ← PyInstaller onedir（一体化,无独立壳）
        ├─ alas-backend.exe    ← 入口（console; deploy/packaging/entry.py → module.cli）
        ├─ version.txt         ← release tag
-       └─ _internal/          ← 运行时 + 打包 datas（含 webapp-tauri/dist 与 pywebview）
+       └─ _internal/          ← 运行时 + 打包 datas（含 webapp/dist 与 pywebview）
 ```
 
 - **一体化解耦壳**：桌面窗口 = `alas-backend.exe run desktop`（pywebview + 系统
@@ -26,23 +26,23 @@
 
 ```powershell
 # 推荐走统一入口
-uv run alas build frontend    # pnpm build → webapp-tauri/dist
+uv run alas build frontend    # pnpm build → webapp/dist
 uv run alas build sidecar     # pyinstaller deploy/packaging/alas_backend.spec
 # 产物：dist/alas-backend/（CI 里再写 version.txt = tag）
 ```
 
 - spec 要点：`console=True`（未捕获异常走 stderr 而非隐藏的模态框）；datas 为
-  assets/bin/config/module 子目录 + `webapp-tauri/dist`（SPA 由后端托管）；
+  assets/bin/config/module 子目录 + `webapp/dist`（SPA 由后端托管）；
   `hiddenimports` 增加 uvicorn/websockets/multipart/webview；`pathex` 用绝对路径
   （含 `.venv/Lib/site-packages`，规避 packaging 20.9 遮蔽）。
 - 冻结适配最小集：`module/base/paths.py::get_resource_root()`（_MEIPASS）、
   `module/logger.py` 的 `not frozen` chdir 守卫、`module/cli/app.py::main()` 的
   `freeze_support()`。
-- 前端 dev：`cd webapp-tauri && pnpm dev`（vite 代理到 `alas run web` 的 22267）。
+- 前端 dev：`cd webapp && pnpm dev`（vite 代理到 `alas run web` 的 22267）。
 
 ## 2. 旧 Tauri 壳（已移除）
 
-2026-09-02 起 `webapp-tauri/src-tauri/` 从仓库删除（git 历史可随时恢复）。删除前它
+2026-09-02 起 `webapp/src-tauri/` 从仓库删除（git 历史可随时恢复）。删除前它
 提供：frameless 窗口、托盘、NSIS 外部捆绑、Job Object 整树收割。对应的替代实现：
 - 窗口 → pywebview（`module/cli/run.py::run_desktop`）；
 - 杀进程树 → 关窗触发 uvicorn 优雅停机，lifespan `_shutdown` 停止 bot 进程；
