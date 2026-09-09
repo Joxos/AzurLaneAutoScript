@@ -9,6 +9,19 @@ from module.island.data import DIC_ISLAND_ITEM, DIC_ISLAND_SEASON_ORDER
 from module.logger import logger
 
 
+def get_idle_accumulating_batch_count(workload, quantum_hours):
+    """Batch count for one idle_accumulating dispatch.
+
+    Idle accumulation is filler work, so one dispatch commits at most about
+    `quantum_hours` of workload (but always at least one batch), letting
+    normal replenishment preempt the slot sooner than a full production
+    queue would. Workload is in game units, 36000 per hour.
+    """
+    if workload <= 0:
+        return 1
+    return max(int(quantum_hours * 36000 // workload), 1)
+
+
 def normalize_item_name(name):
     return str(name).strip()
 

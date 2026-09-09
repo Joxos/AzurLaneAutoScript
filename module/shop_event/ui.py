@@ -27,8 +27,6 @@ EVENT_SHOP_SCROLL.edge_threshold = 0.1
 
 if server.server == "tw":
     EVENT_SHOP_DEADLINE_COLOR = (102, 204, 255)
-elif server.server == "en":
-    EVENT_SHOP_DEADLINE_COLOR = (255, 207, 129)
 else:
     EVENT_SHOP_DEADLINE_COLOR = (96, 162, 62)
 OCR_EVENT_SHOP_DEADLINE = Ocr(
@@ -73,18 +71,38 @@ class EventShopUI(UI):
             logger.info("Event shop has no urpt.")
             return False
 
-    @cached_property
-    def is_event_ended(self):
-        if self.config.EVENT_SHOP_IGNORE_DEADLINE:
-            return True
-        period = OCR_EVENT_SHOP_DEADLINE.ocr(self.device.image)[:-8]
+    def _get_event_deadline(self):
+        """
+        Get event deadline in server timezone
+
+        Returns:
+            datetime | None:
+        """
+        period = OCR_EVENT_SHOP_DEADLINE.ocr(self.device.image)
+        # OCR result is like ":2026.8.13~2026.9.323:59:59", remove "23:59:59"
+        period, _, _ = period.partition("23:59:59")
         pattern = r"(\d{4})\.(\d{1,2})\.(\d{1,2})"
         matches = re.findall(pattern, period)
         if not matches or len(matches) < 2:
             logger.warning(f"Failed to read event deadline: {period}")
-            return False
+            return None
         y, m, d = matches[-1]
         deadline = datetime(int(y), int(m), int(d)) + timedelta(days=1)  # server deadline
+        return deadline
+
+    @cached_property
+    def is_event_ended(self):
+        if self.config.EVENT_SHOP_IGNORE_DEADLINE:
+            return True
+
+        for _ in self.loop(timeout=2):
+            deadline = self._get_event_deadline()
+            if deadline is not None:
+                break
+        else:
+            logger.error('Failed to get event deadline')
+            return False
+
         server_now = datetime.now() - server_time_offset()
         return (deadline - server_now).days < 7
 

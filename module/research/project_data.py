@@ -3336,6 +3336,18 @@ LIST_RESEARCH_PROJECT = [
         ],
     },
     {
+        "name": "E-125-MI",
+        "series": 8,
+        "time": 21600,
+        "task": "",
+        "input": [{"name": "T3 Iron Blood Tech Pack", "amount": 15}],
+        "output": [
+            {"name": "Prototype Quadruple 533mm Si 270 Torpedo Mount T0 Design"},
+            {"name": "Random Gear Design T3"},
+            {"name": "Coins"},
+        ],
+    },
+    {
         "name": "G-412-MI",
         "series": 8,
         "time": 5400,
@@ -5988,6 +6000,18 @@ LIST_RESEARCH_PROJECT = [
         "input": [{"name": "T3 Single 130mm Main Gun Design", "amount": 45}],
         "output": [
             {"name": "Prototype Triple 180mm B-1-P\xa0Model 1932\xa0(Impr.)\xa0Main\xa0Gun\xa0Mount\xa0T0\xa0Design"},
+            {"name": "Random Gear Design T3"},
+            {"name": "Coins"},
+        ],
+    },
+    {
+        "name": "E-825-MI",
+        "series": 8,
+        "time": 7200,
+        "task": "",
+        "input": [{"name": "T3 Quadruple 533mm Torpedo Design", "amount": 45}],
+        "output": [
+            {"name": "Prototype Quadruple 533mm Si 270 Torpedo Mount T0 Design"},
             {"name": "Random Gear Design T3"},
             {"name": "Coins"},
         ],

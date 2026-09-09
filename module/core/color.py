@@ -111,6 +111,12 @@ def color_similar_1d(image, color, threshold=10):
 
 def color_similarity_2d(image, color):
     """
+    Per-pixel color distance map: 255 when the pixel exactly matches color.
+
+    result = 255 - sat_add(max_c(sat_sub(image - c)), max_c(sat_sub(c - image)))
+    where c = (r, g, b), sat_sub/sat_add are uint8 saturating ops,
+    max_c takes the per-pixel maximum across channels.
+
     Args:
         image: 2D array.
         color: (r, g, b)
@@ -123,18 +129,39 @@ def color_similarity_2d(image, color):
     # r, g, b = cv2.split(cv2.subtract((*color, 0), image))
     # negative = cv2.max(cv2.max(r, g), b)
     # return cv2.subtract(255, cv2.add(positive, negative))
-    diff = cv2.subtract(image, (*color,))
-    r, g, b = cv2.split(diff)
-    cv2.max(r, g, dst=r)
-    cv2.max(r, b, dst=r)
-    positive = r
-    cv2.subtract((*color,), image, dst=diff)
-    r, g, b = cv2.split(diff)
-    cv2.max(r, g, dst=r)
-    cv2.max(r, b, dst=r)
+    h, w = image.shape[:2]
+    if h * w < 30000:
+        # The 3-channel path is faster on tiny images where per-call
+        # overhead dominates
+        diff = cv2.subtract(image, (*color,))
+        r, g, b = cv2.split(diff)
+        cv2.max(r, g, dst=r)
+        cv2.max(r, b, dst=r)
+        positive = r
+        cv2.subtract((*color,), image, dst=diff)
+        r, g, b = cv2.split(diff)
+        cv2.max(r, g, dst=r)
+        cv2.max(r, b, dst=r)
+        negative = r
+        cv2.add(positive, negative, dst=positive)
+        cv2.bitwise_not(positive, dst=positive)
+        return positive
+    # Per-channel subtract with buffer reuse wins on larger images
+    r, g, b = cv2.split(image)
+    cr, cg, cb = color
+    positive = cv2.subtract(r, cr)
+    cv2.subtract(cr, r, dst=r)
     negative = r
+    diff = cv2.subtract(g, cg)
+    cv2.max(positive, diff, dst=positive)
+    cv2.subtract(cg, g, dst=diff)
+    cv2.max(negative, diff, dst=negative)
+    cv2.subtract(b, cb, dst=diff)
+    cv2.max(positive, diff, dst=positive)
+    cv2.subtract(cb, b, dst=diff)
+    cv2.max(negative, diff, dst=negative)
     cv2.add(positive, negative, dst=positive)
-    cv2.subtract(255, positive, dst=positive)
+    cv2.bitwise_not(positive, dst=positive)
     return positive
 
 
