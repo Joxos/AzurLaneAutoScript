@@ -1,0 +1,82 @@
+map:
+  name: C3
+  shape: H8
+  camera_data:
+  - D3
+  - D6
+  camera_data_spawn_point:
+  - D3
+  map_data:
+  - ++ ++ SP SP -- -- -- ME
+  - ++ ++ -- -- -- -- ME --
+  - -- MS __ __ MS ++ -- --
+  - MB -- MS MS -- ++ ME --
+  - ++ Me -- -- -- -- -- --
+  - ++ ME -- Me ++ ++ ++ --
+  - ME -- -- -- Me -- ME --
+  - -- ++ Me ME -- ME -- --
+  weight_data:
+  - 50 50 50 50 50 50 50 50
+  - 50 50 50 50 50 50 50 50
+  - 50 50 50 50 50 50 50 50
+  - 50 50 50 50 50 50 50 50
+  - 50 50 50 50 50 50 50 50
+  - 50 50 50 50 50 50 50 50
+  - 50 50 50 50 50 50 50 50
+  - 50 50 50 50 50 50 50 50
+  spawn_data:
+  - battle: 0
+    enemy: 2
+    siren: 2
+  - battle: 1
+    enemy: 1
+  - battle: 2
+    enemy: 2
+  - battle: 3
+    enemy: 1
+  - battle: 4
+    enemy: 1
+  - battle: 5
+    boss: 1
+config_base: c1
+config:
+  MAP_SIREN_TEMPLATE: []
+  MOVABLE_ENEMY_TURN:
+  - 2
+  MAP_HAS_SIREN: true
+  MAP_HAS_MOVABLE_ENEMY: true
+  MAP_HAS_MAP_STORY: false
+  MAP_HAS_FLEET_STEP: true
+  MAP_HAS_AMBUSH: false
+  MAP_HAS_MYSTERY: false
+roads: {}
+selects: {}
+actions: []
+extra_maps: {}
+imports:
+  CampaignBase: campaign_base.CampaignBase
+  CampaignMap: module.map.map_base.CampaignMap
+  SelectedGrids: module.map.map_grids.SelectedGrids
+  RoadGrids: module.map.map_grids.RoadGrids
+  logger: module.logger.logger
+campaign_base_name: CampaignBase
+globals: {}
+battles:
+  battle_0:
+    pattern: clear_filter
+    siren: true
+    preserve: 0
+  battle_5:
+    pattern: boss
+    kind: fleet_boss
+battle_bodies:
+  battle_0: |-
+    def battle_0(self):
+        if self.clear_siren():
+            return True
+        if self.clear_filter_enemy(self.ENEMY_FILTER, preserve=0):
+            return True
+        return self.battle_default()
+  battle_5: |-
+    def battle_5(self):
+        return self.fleet_boss.clear_boss()
