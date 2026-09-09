@@ -101,13 +101,18 @@ def transform(folder_path: Path):
             py.unlink(missing_ok=True)
         else:
             py.write_text(fragment_text, encoding='utf-8', newline='\n')
-        # update yaml + snapshot
-        data['battles'] = battles
-        yp.write_text(dump_map_file(json.loads(json.dumps(data))), encoding='utf-8', newline='\n')
+        # The converter may already have extracted battle patterns into the YAML
+        # (battles present, fragment left with only ENEMY_FILTER etc.). When this
+        # pass matches nothing, keep the recorded specs instead of wiping them
+        # (idempotence: re-running on an already-extracted map must be a no-op).
         snap_path = folder_path / '.legacy_snapshot' / f'{name}.snapshot.json'
         snap = json.loads(snap_path.read_text(encoding='utf-8'))
-        snap['battles'] = battles
-        snap['battle_bodies'] = bodies
+        effective_battles = battles or data.get('battles') or snap.get('battles') or {}
+        effective_bodies = bodies or snap.get('battle_bodies') or {}
+        data['battles'] = effective_battles
+        yp.write_text(dump_map_file(json.loads(json.dumps(data))), encoding='utf-8', newline='\n')
+        snap['battles'] = effective_battles
+        snap['battle_bodies'] = effective_bodies
         snap_path.write_text(
             json.dumps(snap, ensure_ascii=False, indent=2) + '\n', encoding='utf-8', newline='\n'
         )

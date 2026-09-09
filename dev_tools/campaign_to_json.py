@@ -130,6 +130,7 @@ def convert(path: Path):
     selects = {}
     globals_data = {}
     battles_data = {}
+    battle_bodies_data = {}
     extra_top = []  # helper classes/functions living in the fragment
     config_base = None
     config = {}
@@ -269,6 +270,7 @@ def convert(path: Path):
                             skip_reason = f'pattern canonical mismatch for {sub.name}'
                             break
                         battles_data[sub.name] = spec
+                        battle_bodies_data[sub.name] = ast.unparse(sub)
                         continue
                 campaign_nodes.append(sub)
             if skip_reason:
@@ -335,6 +337,7 @@ def convert(path: Path):
         'campaign_base_name': campaign_base_name,
         'globals': globals_data,
         'battles': battles_data,
+        'battle_bodies': battle_bodies_data,
     }
     header = f'class Campaign({campaign_base_name}):' if campaign_base_name else 'class Campaign:'
     body = '\n'.join(textwrap.indent(ast.unparse(n), '    ') for n in campaign_nodes) or '    pass'
@@ -353,6 +356,7 @@ def convert(path: Path):
         'campaign_base_name': campaign_base_name,
         'globals': globals_data,
         'battles': battles_data,
+        'battle_bodies': battle_bodies_data,
         'campaign_methods': sorted(
             [n.name for n in campaign_nodes if isinstance(n, ast.FunctionDef)] + list(battles_data)
         ),
