@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [master, "refactor/*"]
+    branches: [master, "refactor/*", "feature/*"]
   pull_request:
 
 jobs:
@@ -19,6 +19,20 @@ jobs:
 
       - name: Sync dependencies
         run: uv sync --frozen
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install frontend dependencies
+        working-directory: webapp
+        run: pnpm install --frozen-lockfile
 
       # The lint/type gates are scoped to the directories that are currently
       # clean; widen them as the legacy codebase goes green (module/config,
@@ -42,10 +56,24 @@ jobs:
       - name: Tests
         run: uv run pytest tests -v
 
+      - name: Frontend tests
+        working-directory: webapp
+        run: pnpm test
+
+      # The log view is laid out by rich on the backend; this gate renders a
+      # real log sample through the real frontend pipeline in headless Edge and
+      # fails when any line leaves rich's cell grid (the "error box right edge
+      # is not aligned" bug).
+      - name: Log cell-grid gate
+        run: node dev_tools/verify_log_align.mjs
+
       - name: Equivalence gates (Phase 456)
         run: |
           uv run python dev_tools/verify_config_generated.py
           uv run python dev_tools/verify_task_families.py
           uv run python dev_tools/verify_stage_meta.py
           uv run python dev_tools/verify_map_data.py --all
-          uv run python dev_tools/verify_assets.py check .qoder/phase456/assets_before.json
+          uv run python dev_tools/gen_log_cell_widths.py --check
+          # Re-record after an intentional assets.py change:
+          #   uv run python dev_tools/verify_assets.py dump dev_tools/baseline/assets_snapshot.json
+          uv run python dev_tools/verify_assets.py check dev_tools/baseline/assets_snapshot.json
