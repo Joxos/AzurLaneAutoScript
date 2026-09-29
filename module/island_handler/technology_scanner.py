@@ -5,7 +5,7 @@ from yaml import safe_dump
 from module.base.button import ButtonGrid
 from module.base.decorator import cached_property
 from module.base.mask import Mask
-from module.base.utils import area_offset, color_similarity_2d, crop, load_image, random_rectangle_vector, rgb2luma
+from module.base.utils import area_offset, color_mask, crop, load_image, random_rectangle_vector, rgb2luma
 from module.island.data import DIC_ISLAND_TECHNOLOGY
 from module.island.ui import IslandUI
 from module.island_handler.assets import *  # noqa: F403  (data-bundle star import)
@@ -32,9 +32,8 @@ BUTTON_AREA = (-110, -26, 110, 26)
 
 def extract_flowchart(image):
     brightness = rgb2luma(image)
-    black = color_similarity_2d(image, (7, 10, 17))
     brightness_mask = cv2.inRange(brightness, 160, 255)
-    black_mask = cv2.inRange(black, 245, 255)
+    black_mask = color_mask(image, (7, 10, 17), threshold=10)
     mask = cv2.bitwise_or(brightness_mask, black_mask)
     contours, _ = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     filled_mask = np.zeros_like(mask)

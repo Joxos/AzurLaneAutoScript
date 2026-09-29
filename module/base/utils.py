@@ -15,6 +15,7 @@ from PIL import Image
 
 from module.core.color import (
     color_bar_percentage,
+    color_mask,
     color_similar,
     color_similar_1d,
     color_similarity,
@@ -86,6 +87,7 @@ __all__ = [
     "col2name",
     "color_bar_percentage",
     "color_mapping",
+    "color_mask",
     "color_similar",
     "color_similar_1d",
     "color_similarity",

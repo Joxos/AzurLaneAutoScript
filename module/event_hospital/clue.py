@@ -3,7 +3,7 @@ from functools import reduce
 import cv2
 import numpy as np
 
-from module.base.utils import area_offset, color_similarity_2d, image_size, rgb2gray, xywh2xyxy
+from module.base.utils import area_offset, color_mask, image_size, rgb2gray, xywh2xyxy
 from module.event_hospital.assets import *  # noqa: F403  (data-bundle star import)
 from module.event_hospital.ui import HospitalUI
 from module.logger import logger
@@ -12,12 +12,15 @@ from module.ui.page import page_hospital
 from module.ui.scroll import Scroll
 
 
-def merge_two_rects(r1: tuple[int, int, int, int], r2: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+def merge_two_rects(
+        r1: tuple[int, int, int, int],
+        r2: tuple[int, int, int, int]
+) -> tuple[int, int, int, int]:
     return (
         min(r1[0], r2[0]),  # left
         min(r1[1], r2[1]),  # top
         max(r1[2], r2[2]),  # right
-        max(r1[3], r2[3]),  # bottom
+        max(r1[3], r2[3])  # bottom
     )
 
 
@@ -55,11 +58,9 @@ class HospitalClue(HospitalUI):
         image = self.image_crop(area, copy=False)
 
         # Mask for gray letters
-        gray = color_similarity_2d(image, color=(132, 134, 148))
-        cv2.inRange(gray, 215, 255, dst=gray)
+        gray = color_mask(image, color=(132, 134, 148), threshold=40)
         # Mask for selected aside (white letters)
-        white = color_similarity_2d(image, color=(255, 255, 255))
-        cv2.inRange(white, 215, 255, dst=white)
+        white = color_mask(image, color=(255, 255, 255), threshold=40)
         # Clear gray mask around white pixels
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (200, 20))
         white_expanded = cv2.dilate(white, kernel)
@@ -92,7 +93,8 @@ class HospitalClue(HospitalUI):
         list_row = merge_rows(list_word, merge=5)
         list_row = [area_offset(r, offset=area[:2]) for r in list_row]
         list_button = [
-            Button(area=rect, color=(), button=rect, name=f"CLUE_LIST_{i}") for i, rect in enumerate(list_row)
+            Button(area=rect, color=(), button=rect, name=f'CLUE_LIST_{i}')
+            for i, rect in enumerate(list_row)
         ]
         return list_button
 
@@ -142,7 +144,7 @@ class HospitalClue(HospitalUI):
             in: Any sub page of hospital event
             out: is_in_clue
         """
-        logger.info("Hospital clue enter")
+        logger.info('Hospital clue enter')
         self.interval_clear(page_hospital.check_button)
         while 1:
             if skip_first_screenshot:
@@ -160,7 +162,7 @@ class HospitalClue(HospitalUI):
             in: Any sub page of hospital event
             out: page_hospital
         """
-        logger.info("Hospital clue exit")
+        logger.info('Hospital clue exit')
         self.interval_clear(HOSIPITAL_CLUE_CHECK)
         while 1:
             if skip_first_screenshot:
@@ -186,7 +188,7 @@ class HospitalClue(HospitalUI):
             in: is_in_clue
             out: FLEET_PREPARATION
         """
-        logger.info("Clue invest")
+        logger.info('Clue invest')
         self.interval_clear(HOSIPITAL_CLUE_CHECK)
         while 1:
             if skip_first_screenshot:
@@ -199,9 +201,9 @@ class HospitalClue(HospitalUI):
             if self.is_in_clue(interval=2):
                 invest = next(self.iter_invest(), None)
                 if invest is None:
-                    logger.info("No more invest")
+                    logger.info('No more invest')
                     return False
-                logger.info(f"is_in_clue -> {invest}")
+                logger.info(f'is_in_clue -> {invest}')
                 self.device.click(invest)
                 self.interval_reset(HOSIPITAL_CLUE_CHECK, interval=2)
                 continue
@@ -215,11 +217,11 @@ class HospitalClue(HospitalUI):
         Yields:
             Button:
         """
-        logger.hr("Iter invest")
-        scroll = Scroll(INVEST_SCROLL, color=(107, 97, 107), name="INVEST_SCROLL")
+        logger.hr('Iter invest')
+        scroll = Scroll(INVEST_SCROLL, color=(107, 97, 107), name='INVEST_SCROLL')
         # No scroll, yield one button only
         if not scroll.appear(main=self):
-            logger.info("No scroll")
+            logger.info('No scroll')
             button = self.get_invest_button()
             if button:
                 yield button
@@ -239,7 +241,7 @@ class HospitalClue(HospitalUI):
         # Iter page
         while 1:
             if scroll.at_bottom(main=self):
-                logger.info(f"{scroll.name} reached end")
+                logger.info(f'{scroll.name} reached end')
                 return
             scroll.next_page(main=self, page=0.5)
             button = self.get_invest_button()
@@ -251,7 +253,7 @@ class HospitalClue(HospitalUI):
         search = CLUE_LIST.area
         # Search around if having dark background
         area = (search[0], area[1], search[2], area[3])
-        return self.image_color_count(area, color=(82, 85, 107), threshold=221, count=500)
+        return self.image_color_count(area, color=(82, 85, 107), threshold=30, count=500)
 
     def is_aside_checked(self, button: Button) -> bool:
         area = button.area
@@ -259,7 +261,7 @@ class HospitalClue(HospitalUI):
         # Search if there's any cyan
         # JP has text overflowed, set right to 308
         area = (search[0], area[1], 308, area[3])
-        return self.image_color_count(area, color=(74, 130, 148), threshold=221, count=20)
+        return self.image_color_count(area, color=(74, 130, 148), threshold=30, count=20)
 
     def iter_aside(self):
         """
@@ -284,7 +286,7 @@ class HospitalClue(HospitalUI):
         Pages:
             in: is_in_clue
         """
-        logger.info("Select aside")
+        logger.info('Select aside')
         aside = None
         self.interval_clear(HOSIPITAL_CLUE_CHECK)
         while 1:
@@ -298,9 +300,9 @@ class HospitalClue(HospitalUI):
             if self.is_in_clue(interval=2):
                 aside = next(self.iter_aside(), None)
                 if aside is None:
-                    logger.info("No more aside")
+                    logger.info('No more aside')
                     return False
-                logger.info(f"is_in_clue -> {aside}")
+                logger.info(f'is_in_clue -> {aside}')
                 self.device.click(aside)
                 self.interval_reset(HOSIPITAL_CLUE_CHECK, interval=2)
                 continue

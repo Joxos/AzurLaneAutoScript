@@ -77,3 +77,6 @@ jobs:
           # Re-record after an intentional assets.py change:
           #   uv run python dev_tools/verify_assets.py dump dev_tools/baseline/assets_snapshot.json
           uv run python dev_tools/verify_assets.py check dev_tools/baseline/assets_snapshot.json
+          # Upstream writes the per-server dict form everywhere; this restores
+          # our collapsed form (semantics identical, checked above).
+          uv run python dev_tools/dedup_assets.py --check

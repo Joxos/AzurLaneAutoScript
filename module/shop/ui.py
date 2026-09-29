@@ -24,10 +24,13 @@ class ShopUI(UI):
             merit.
         """
         shop_bottom_navbar = ButtonGrid(
-            origin=(399, 619), delta=(182, 0), button_shape=(56, 42), grid_shape=(5, 1), name="SHOP_BOTTOM_NAVBAR"
-        )
+            origin=(399, 619), delta=(182, 0),
+            button_shape=(56, 42), grid_shape=(5, 1),
+            name='SHOP_BOTTOM_NAVBAR')
 
-        return Navbar(grids=shop_bottom_navbar, active_color=(33, 195, 239), inactive_color=(181, 178, 181))
+        return Navbar(grids=shop_bottom_navbar,
+                      active_color=(33, 195, 239),
+                      inactive_color=(181, 178, 181))
 
     def shop_bottom_navbar_ensure(self, left=None, right=None):
         """
@@ -49,14 +52,14 @@ class ShopUI(UI):
 
     @cached_property
     def shop_nav_250814(self):
-        switch = Switch("shop_nav_250814", is_selector=True, offset=(20, 20))
+        switch = Switch('shop_nav_250814', is_selector=True, offset=(20, 20))
         switch.add_state(NAV_GENERAL, check_button=NAV_GENERAL)
         switch.add_state(NAV_MONTHLY, check_button=NAV_MONTHLY)
         return switch
 
     @cached_property
     def shop_tab_250814(self):
-        switch = Switch("shop_tab_250814", is_selector=True, offset=(20, 20))
+        switch = Switch('shop_tab_250814', is_selector=True, offset=(20, 20))
         switch.add_state(TAB_GENERAL, check_button=TAB_GENERAL)
         switch.add_state(TAB_MERIT, check_button=TAB_MERIT)
         switch.add_state(TAB_GUILD, check_button=TAB_GUILD)
@@ -73,7 +76,7 @@ class ShopUI(UI):
         Returns:
             bool: If refreshed
         """
-        logger.info("Shop refresh")
+        logger.info('Shop refresh')
         refreshed = False
 
         # SHOP_REFRESH -> POPUP_CONFIRM
@@ -84,14 +87,14 @@ class ShopUI(UI):
             # SHOP_REFRESH is refresh icon with surrounded background
             if self.appear(SHOP_REFRESH_CHECK, offset=(30, 30), interval=3):
                 # SHOP_REFRESH has two kinds of color when active
-                if self.image_color_count(SHOP_REFRESH.button, color=(49, 142, 207), threshold=221, count=50):
+                if self.image_color_count(SHOP_REFRESH.button, color=(49, 142, 207), threshold=30, count=50):
                     self.device.click(SHOP_REFRESH)
                     continue
-                if self.image_color_count(SHOP_REFRESH.button, color=(54, 117, 161), threshold=221, count=50):
+                if self.image_color_count(SHOP_REFRESH.button, color=(54, 117, 161), threshold=30, count=50):
                     self.device.click(SHOP_REFRESH)
                     continue
-                if self.image_color_count(SHOP_REFRESH.button, color=(52, 74, 94), threshold=221, count=50):
-                    logger.info("Refresh not available")
+                if self.image_color_count(SHOP_REFRESH.button, color=(52, 74, 94), threshold=30, count=50):
+                    logger.info('Refresh not available')
                     break
                 # no `continue`, act like SHOP_REFRESH not matched
                 self.interval_clear(SHOP_REFRESH)
@@ -101,17 +104,12 @@ class ShopUI(UI):
             if self.appear(SHOP_BACK_ARROW, offset=(30, 30)):
                 break
             if self.appear(SHOP_BUY_CONFIRM_MISTAKE, interval=3, offset=(200, 200)):
-                logger.warning("SHOP_BUY_CONFIRM_MISTAKE")
-                self.ui_click(
-                    SHOP_CLICK_SAFE_AREA,
-                    appear_button=POPUP_CONFIRM,
-                    check_button=SHOP_BACK_ARROW,
-                    offset=(20, 30),
-                    skip_first_screenshot=True,
-                )
+                logger.warning('SHOP_BUY_CONFIRM_MISTAKE')
+                self.ui_click(SHOP_CLICK_SAFE_AREA, appear_button=POPUP_CONFIRM, check_button=SHOP_BACK_ARROW,
+                              offset=(20, 30), skip_first_screenshot=True)
                 refreshed = False
                 break
-            if self.handle_popup_confirm("SHOP_REFRESH_CONFIRM"):
+            if self.handle_popup_confirm('SHOP_REFRESH_CONFIRM'):
                 refreshed = True
                 continue
 
@@ -129,7 +127,7 @@ class ShopUI(UI):
             out: page_munitions
         """
         if self.ui_get_current_page() == page_munitions:
-            logger.info(f"Already at {page_munitions}")
+            logger.info(f'Already at {page_munitions}')
             return
 
         self.ui_ensure(page_academy)

@@ -1,5 +1,6 @@
-from module.base.utils import color_similarity_2d, crop, cv2, np, rgb2gray
+from module.base.utils import *  # noqa: F403  (data-bundle star import)
 from module.map_detection.grid import Grid, GridInfo, GridPredictor
+from module.map_detection.utils_assets import ASSETS
 from module.os.assets import *  # noqa: F403  (data-bundle star import)
 from module.os.radar import RadarGrid
 from module.template.assets import *  # noqa: F403  (data-bundle star import)
@@ -25,46 +26,49 @@ class OSGridInfo(GridInfo):
 
     is_radar_scanned = False
 
+    @property
+    def is_interactive_only(self):
+        # Fleet can't goto this grid, but can only interact next to it
+        return self.is_ally or self.is_akashi
 
     def encode(self):
         dic = {
-            "AL": "is_ally",
-            "AK": "is_akashi",
-            "SD": "is_scanning_device",
-            "LT": "is_logging_tower",
-            "ER": "is_exploration_reward",
-            "EC": "is_exploration_container",
-            "FM": "is_fleet_mechanism",
+            'AL': 'is_ally',
+            'AK': 'is_akashi',
+            'SD': 'is_scanning_device',
+            'LT': 'is_logging_tower',
+            'ER': 'is_exploration_reward',
+            'EC': 'is_exploration_container',
+            'FM': 'is_fleet_mechanism',
         }
         for key, value in dic.items():
             if self.__getattribute__(value):
                 return key
 
         if self.is_siren:
-            name = self.enemy_genre[6:8].upper() if self.enemy_genre else "SU"
-            return name if name else "SU"
+            name = self.enemy_genre[6:8].upper() if self.enemy_genre else 'SU'
+            return name if name else 'SU'
 
         if self.is_enemy:
-            return "%s%s" % (
+            return '%s%s' % (
                 self.enemy_scale if self.enemy_scale else 0,
-                self.enemy_genre[0].upper() if self.enemy_genre else "E",
-            )
+                self.enemy_genre[0].upper() if self.enemy_genre else 'E')
 
         dic = {
-            "RE": "is_resource",
-            "EX": "is_exclamation",
-            "ME": "is_meowfficer",
-            "QU": "is_question",
-            "FL": "is_fleet",
-            "==": "is_radar_scanned",
+            'RE': 'is_resource',
+            'EX': 'is_exclamation',
+            'ME': 'is_meowfficer',
+            'QU': 'is_question',
+            'FL': 'is_fleet',
+            '==': 'is_radar_scanned'
         }
         for key, value in dic.items():
             if self.__getattribute__(value):
                 return key
 
-        return "--"
+        return '--'
 
-    def merge(self, info, mode="normal"):
+    def merge(self, info, mode='normal'):
         """
         Args:
             info (OSGridInfo, RadarGrid):
@@ -114,7 +118,7 @@ class OSGridInfo(GridInfo):
             self.is_enemy = True
             if info.enemy_scale:
                 self.enemy_scale = info.enemy_scale
-            if info.enemy_genre and not (info.enemy_genre == "Enemy" and self.enemy_genre):
+            if info.enemy_genre and not (info.enemy_genre == 'Enemy' and self.enemy_genre):
                 self.enemy_genre = info.enemy_genre
             return True
 
@@ -158,11 +162,12 @@ class OSGridPredictor(GridPredictor):
         # self.enemy_scale = self.predict_enemy_scale()
         # self.is_resource = self.predict_resource()
         # self.is_meowfficer = self.predict_meowfficer()  # This will increase the overall time cost about 100ms
-        self.is_akashi = self.enemy_genre == "Akashi"
-        self.is_scanning_device = self.enemy_genre == "ScanningDevice"
-        self.is_logging_tower = self.enemy_genre == "LoggingTower"
-        self.is_exploration_reward = self.enemy_genre == "ExplorationReward"
-        self.is_exploration_container = self.enemy_genre == "ExplorationContainer"
+        # self.is_ally = self.predict_ally()
+        self.is_akashi = self.enemy_genre == 'Akashi'
+        self.is_scanning_device = self.enemy_genre == 'ScanningDevice'
+        self.is_logging_tower = self.enemy_genre == 'LoggingTower'
+        self.is_exploration_reward = self.enemy_genre == 'ExplorationReward'
+        self.is_exploration_container = self.enemy_genre == 'ExplorationContainer'
         self.is_current_fleet = self.predict_current_fleet()
         self.is_fleet = self.is_current_fleet
         self.is_fleet_mechanism = self.predict_fleet_mechanism()
@@ -174,9 +179,9 @@ class OSGridPredictor(GridPredictor):
         # if not self.is_enemy:
         #     self.is_enemy = self.predict_static_red_border()
         if self.is_enemy and not self.enemy_genre:
-            self.enemy_genre = "Enemy"
+            self.enemy_genre = 'Enemy'
         if self.config.MAP_HAS_SIREN:
-            if self.enemy_genre is not None and self.enemy_genre.startswith("Siren"):
+            if self.enemy_genre is not None and self.enemy_genre.startswith('Siren'):
                 self.is_siren = True
                 self.enemy_scale = 0
 
@@ -184,17 +189,39 @@ class OSGridPredictor(GridPredictor):
         # OS don't have ammo icon
         return super().predict_current_fleet()
 
+    def predict_sea(self):
+        color = cv2.mean(self.image_trans)
+        if not min(color[1], color[2]) > color[0] + 20:
+            return False
+
+        area = area_pad((48, 48, 48 + 46, 48 + 46), pad=5)
+        res = cv2.matchTemplate(ASSETS.tile_center_image, crop(self.image_homo, area=area, copy=False), cv2.TM_CCOEFF_NORMED)
+        _, sim, _, _ = cv2.minMaxLoc(res)
+        if sim > 0.8:
+            return True
+
+        # tile = 135
+        # corner = 25
+        # corner = [(5, 5, corner, corner), (tile - corner, 5, tile, corner), (5, tile - corner, corner, tile),
+        #           (tile - corner, tile - corner, tile, tile)]
+        # for area, template in zip(corner[::-1], ASSETS.tile_corner_image_list[::-1]):
+        #     res = cv2.matchTemplate(template, crop(self.image_homo, area=area), cv2.TM_CCOEFF_NORMED)
+        #     _, sim, _, _ = cv2.minMaxLoc(res)
+        #     if sim > 0.8:
+        #         return True
+
+        return False
 
     _os_template_enemy = {
-        "Akashi": TEMPLATE_SIREN_Akashi,
-        "ScanningDevice": TEMPLATE_ScanningDevice,
-        "LoggingTower": TEMPLATE_LoggingTower,
-        "ExplorationReward": TEMPLATE_ExplorationReward,
-        "ExplorationContainer": TEMPLATE_ExplorationContainer,
+        'Akashi': TEMPLATE_SIREN_Akashi,
+        'ScanningDevice': TEMPLATE_ScanningDevice,
+        'LoggingTower': TEMPLATE_LoggingTower,
+        'ExplorationReward': TEMPLATE_ExplorationReward,
+        'ExplorationContainer': TEMPLATE_ExplorationContainer,
     }
     _os_template_enemy_upper = {
-        "ScanningDevice": TEMPLATE_ScanningDeviceUpper,
-        "LoggingTower": TEMPLATE_LoggingTowerUpper,
+        'ScanningDevice': TEMPLATE_ScanningDeviceUpper,
+        'LoggingTower': TEMPLATE_LoggingTowerUpper,
     }
 
     def predict_enemy_genre(self):
@@ -244,12 +271,19 @@ class OSGridPredictor(GridPredictor):
         image = rgb2gray(self.image_trans)
         return TEMPLATE_OS_Meowfficer.match(image, similarity=0.85)
 
+    def predict_ally(self):
+        # Ally cargo ship in daily mission
+        image = rgb2gray(self.relative_crop((-0.5, -0.5, 0.5, 0.5), shape=(60, 60)))
+        return TEMPLATE_OS_AllyCargo.match(image, similarity=0.85)
+
+    def predict_akashi(self):
+        image = rgb2gray(self.relative_crop((-0.5, -1, 0.5, 0), shape=(60, 60)))
+        return TEMPLATE_SIREN_Akashi.match(image, similarity=0.85)
 
     def predict_caught_by_siren(self):
         # Detect the red slash background of `In action`.
-        return (
-            self.relative_rgb_count(area=(-1, -0.5, 0, 0.5), color=(255, 109, 91), shape=(50, 50), threshold=221) > 120
-        )
+        return self.relative_rgb_count(
+            area=(-1, -0.5, 0, 0.5), color=(255, 109, 91), shape=(50, 50), threshold=30) > 120
 
     def predict_fleet_mechanism(self):
         # Get the upper border

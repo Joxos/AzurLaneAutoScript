@@ -9,20 +9,19 @@ from module.storage.assets import EQUIPMENT_FULL
 from module.storage.storage import StorageHandler
 
 EMPTY_CODE = "MC8wLzAvMC8wXDA="
-U2_CONTROL_METHODS = {"uiautomator2", "minitouch", "MaaTouch"}
+U2_CONTROL_METHODS = {'uiautomator2', 'minitouch', 'MaaTouch'}
 EQUIPMENT_PREVIEW = [
-        EQUIPMENT_CODE_EQUIP_0,
-        EQUIPMENT_CODE_EQUIP_1,
-        EQUIPMENT_CODE_EQUIP_2,
-        EQUIPMENT_CODE_EQUIP_3,
-        EQUIPMENT_CODE_EQUIP_4,
-        EQUIPMENT_CODE_EQUIP_5,
-    ]
-
+    EQUIPMENT_CODE_EQUIP_0,
+    EQUIPMENT_CODE_EQUIP_1,
+    EQUIPMENT_CODE_EQUIP_2,
+    EQUIPMENT_CODE_EQUIP_3,
+    EQUIPMENT_CODE_EQUIP_4,
+    EQUIPMENT_CODE_EQUIP_5,
+]
 
 class EquipmentCodeHandler(StorageHandler):
     last_code: str = None
-    FASTINPUT_IME = "com.github.uiautomator/.FastInputIME"
+    FASTINPUT_IME = 'com.github.uiautomator/.FastInputIME'
 
     def equipment_code_supported(self):
         method = self.config.Emulator_ControlMethod
@@ -76,19 +75,19 @@ class EquipmentCodeHandler(StorageHandler):
                 break
         if TEMPLATE_BOGUE.match(self.device.image, scaling=1.46):  # image has rotation
             logger.info("Bogue detected")
-            return "bogue"
+            return 'bogue'
         elif TEMPLATE_HERMES.match(self.device.image, scaling=124 / 89):
             logger.info("Hermes detected")
-            return "hermes"
+            return 'hermes'
         elif TEMPLATE_RANGER.match(self.device.image, scaling=4 / 3):
             logger.info("Ranger detected")
-            return "ranger"
+            return 'ranger'
         elif TEMPLATE_LANGLEY.match(self.device.image, scaling=25 / 21):
             logger.info("Langley detected")
-            return "langley"
+            return 'langley'
         else:
             logger.warning("Unknown ship detected, assuming DD")
-            return "DD"
+            return 'DD'
 
     def _code_enter(self):
         """
@@ -103,6 +102,13 @@ class EquipmentCodeHandler(StorageHandler):
             if self.appear_then_click(EQUIPMENT_CODE_ENTRANCE, offset=(5, 5), interval=1):
                 continue
 
+    def _code_exit(self):
+        """
+        Pages:
+            in: equipment_code
+            out: ship_detail
+        """
+        self.ui_back(check_button=EQUIPMENT_CODE_ENTRANCE)
 
     def is_code_preview_loaded(self):
         if self.appear(EQUIPMENT_CODE_EQUIP_5_LOCKED, offset=(5, 5)):
@@ -122,10 +128,12 @@ class EquipmentCodeHandler(StorageHandler):
             return False
 
     def fastinput_ime_enable(self):
-        self.device.adb_shell(["am", "start", "-a", "android.settings.INPUT_METHOD_SETTINGS"])
+        self.device.adb_shell(['am', 'start', '-a', 'android.settings.INPUT_METHOD_SETTINGS'])
         while 1:
-            h = self.device.dump_hierarchy_adb()
+            h = self.device.dump_hierarchy()
 
+            # `h` is bound as a default so each helper closes over the
+            # snapshot taken at the top of this iteration.
             def appear(xpath, h=h):
                 return bool(HierarchyButton(h, xpath))
 
@@ -137,25 +145,29 @@ class EquipmentCodeHandler(StorageHandler):
                 else:
                     return False
 
-            if appear_then_click(
-                '//*[@resource-id="android:id/title" and @text="FastInputIME"]/following-sibling::*[@resource-id="android:id/switch_widget" and @checked="false"]'
-            ):
+            if appear_then_click('//*[@resource-id="android:id/title" and @text="FastInputIME"]/following-sibling::*[@resource-id="android:id/switch_widget" and @checked="false"]'):
                 continue
             if appear_then_click('//*[@resource-id="android:id/button1"]'):
                 continue
             # Disable one other enabled IME at a time
-            if appear_then_click(
-                '(//*[@resource-id="android:id/title" and @text!="FastInputIME"]/following-sibling::*[@resource-id="android:id/switch_widget" and @enabled="true" and @checked="true"])[1]'
-            ):
+            if appear_then_click('(//*[@resource-id="android:id/title" and @text!="FastInputIME"]/following-sibling::*[@resource-id="android:id/switch_widget" and @enabled="true" and @checked="true"])[1]'):
                 continue
-            if appear(
-                '//*[@resource-id="android:id/title" and @text="FastInputIME"]/following-sibling::*[@resource-id="android:id/switch_widget" and @checked="true"]'
-            ) and not appear(
-                '//*[@resource-id="android:id/title" and @text!="FastInputIME"]/following-sibling::*[@resource-id="android:id/switch_widget" and @enabled="true" and @checked="true"]'
-            ):
+            if appear('//*[@resource-id="android:id/title" and @text="FastInputIME"]/following-sibling::*[@resource-id="android:id/switch_widget" and @checked="true"]') \
+                    and not appear('//*[@resource-id="android:id/title" and @text!="FastInputIME"]/following-sibling::*[@resource-id="android:id/switch_widget" and @enabled="true" and @checked="true"]'):
                 break
 
-        self.device.adb_shell(["input", "keyevent", "4"])
+            # Android 15 (e.g. MuMu 12) uses com.android.settings:id/switchWidget for the same switch,
+            # keep the xpath above untouched and handle the other resource id here.
+            if appear_then_click('//*[@resource-id="android:id/title" and @text="FastInputIME"]/following-sibling::*[@resource-id="com.android.settings:id/switchWidget" and @checked="false"]'):
+                continue
+            # Disable one other enabled IME at a time
+            if appear_then_click('(//*[@resource-id="android:id/title" and @text!="FastInputIME"]/following-sibling::*[@resource-id="com.android.settings:id/switchWidget" and @enabled="true" and @checked="true"])[1]'):
+                continue
+            if appear('//*[@resource-id="android:id/title" and @text="FastInputIME"]/following-sibling::*[@resource-id="com.android.settings:id/switchWidget" and @checked="true"]') \
+                    and not appear('//*[@resource-id="android:id/title" and @text!="FastInputIME"]/following-sibling::*[@resource-id="com.android.settings:id/switchWidget" and @enabled="true" and @checked="true"]'):
+                break
+
+        self.device.adb_shell(['input', 'keyevent', '4'])
 
     def set_fastinput_ime(self):
         d = self.device.u2
@@ -164,10 +176,10 @@ class EquipmentCodeHandler(StorageHandler):
             return
         failed = False
         try:
-            for command in ("enable", "set"):
-                result = d.shell(["ime", command, self.FASTINPUT_IME])
-                exit_code = getattr(result, "exit_code", 0)
-                output = getattr(result, "output", result)
+            for command in ('enable', 'set'):
+                result = d.shell(['ime', command, self.FASTINPUT_IME])
+                exit_code = getattr(result, 'exit_code', 0)
+                output = getattr(result, 'output', result)
                 if exit_code:
                     failed = True
                     logger.warning(f"Unable to {command} FastInputIME: {output.strip()}")

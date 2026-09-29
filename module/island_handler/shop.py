@@ -4,6 +4,7 @@ import module.config.server as server
 from module.base.button import ButtonGrid
 from module.base.decorator import cached_property, del_cached_property
 from module.island.data import DIC_ISLAND_SHOP, DIC_ISLAND_SHOP_ITEM_TO_RECIPE, DIC_ISLAND_SHOP_RECIPE
+from module.island.utils import item_name_with_id
 from module.island_handler.assets import *  # noqa: F403  (data-bundle star import)
 from module.island_handler.shop_ui import IslandShopUI
 from module.logger import logger
@@ -13,6 +14,12 @@ from module.ui.page import page_island_shop
 from module.ui_white.assets import BACK_ARROW_WHITE
 
 SHOP_ITEM_NAME_AREA = (12, 142, 134, 163)
+
+
+def shop_recipe_name_with_id(recipe_id):
+    if recipe_id not in DIC_ISLAND_SHOP_RECIPE:
+        return f'unknown shop recipe ({recipe_id})'
+    return f"{DIC_ISLAND_SHOP_RECIPE[recipe_id]['name'][server.server]} ({recipe_id})"
 
 
 class IslandShop(IslandShopUI):
@@ -37,6 +44,8 @@ class IslandShop(IslandShopUI):
     def _island_shop_item_name_ocr(self):
         if server.server == 'jp':
             lang = 'jp'
+        elif server.server == 'tw':
+            lang = 'tw'
         else:
             lang = 'cnocr'
         return Ocr(
@@ -129,7 +138,7 @@ class IslandShop(IslandShopUI):
                 middle = 10*(q + 1) + 1
             return middle
 
-        if server.server == 'cn':
+        if server.server in ['cn', 'tw']:
             lang = 'cnocr'
         else:
             lang = 'azur_lane'
@@ -161,15 +170,21 @@ class IslandShop(IslandShopUI):
     def island_shop_buy_in_page(self, recipe_id, amount=1):
         currency_id = next(iter(DIC_ISLAND_SHOP_RECIPE[recipe_id]['resource_consume'].keys()))
         currency_amount = self.island_shop_get_currency().get(currency_id, 0)
-        logger.info(f"Current currency amount: {currency_amount}, required: {DIC_ISLAND_SHOP_RECIPE[recipe_id]['resource_consume'][currency_id] * amount}")
+        required = DIC_ISLAND_SHOP_RECIPE[recipe_id]['resource_consume'][currency_id] * amount
+        logger.info(
+            f'Current {item_name_with_id(currency_id)} amount: {currency_amount}, required: {required}'
+        )
         if currency_amount < DIC_ISLAND_SHOP_RECIPE[recipe_id]['resource_consume'][currency_id] * amount:
-            logger.warning(f"Not enough currency to buy {amount} of recipe {recipe_id}")
+            logger.warning(
+                f'Not enough {item_name_with_id(currency_id)} to buy {amount} of '
+                f'{shop_recipe_name_with_id(recipe_id)}'
+            )
             return False
         for id, button in zip(self.island_shop_item_ids, self._island_shop_item_grid.buttons):
             if id == recipe_id:
                 self.island_shop_buy_execute(button, amount)
                 return True
-        logger.warning(f"Recipe {recipe_id} not found in shop")
+        logger.warning(f'{shop_recipe_name_with_id(recipe_id)} not found in shop')
         return False
 
     @cached_property
@@ -184,8 +199,8 @@ class IslandShop(IslandShopUI):
             ),
             active_color=(249, 181, 76),
             inactive_color=(235, 235, 235),
-            active_threshold=221,
-            inactive_threshold=240,
+            active_threshold=30,
+            inactive_threshold=15,
             active_count=5000,
             inactive_count=5000,
             name="island_shop_tab",
@@ -203,10 +218,13 @@ class IslandShop(IslandShopUI):
         for shop_id in search_range:
             if recipe_id in DIC_ISLAND_SHOP[shop_id]['goods']:
                 target_shop_id = shop_id
-                logger.info(f"Recipe {recipe_id} is in shop {shop_id}, name {DIC_ISLAND_SHOP[shop_id]['name'][server.server]}")
+                logger.info(
+                    f'{shop_recipe_name_with_id(recipe_id)} is in shop '
+                    f'{DIC_ISLAND_SHOP[shop_id]["name"][server.server]} ({shop_id})'
+                )
                 break
         if target_shop_id is None:
-            logger.warning(f'Recipe {recipe_id} is not available in the searched shops')
+            logger.warning(f'{shop_recipe_name_with_id(recipe_id)} is not available in the searched shops')
             return False
         order = [0, 0, 0]
         for index in range(3):
@@ -248,12 +266,17 @@ class IslandShop(IslandShopUI):
                 logger.warning(f"Recipe {recipe_id} not found in data, cannot buy")
                 continue
             buy_count = (amount - 1) // DIC_ISLAND_SHOP_RECIPE[recipe_id]['items'][item_id] + 1
-            logger.info(f"Buying {amount} of item {item_id} requires recipe {recipe_id} with buy count {buy_count}")
+            logger.info(
+                f'Buying {amount} of {item_name_with_id(item_id)} requires '
+                f'{shop_recipe_name_with_id(recipe_id)} with buy count {buy_count}'
+            )
             if self.island_shop_set_navbar_and_tab(recipe_id, isolated=isolated):
                 if not self.island_shop_buy_in_page(recipe_id, buy_count):
-                    logger.warning(f"Failed to buy recipe {recipe_id}")
+                    logger.warning(f'Failed to buy {shop_recipe_name_with_id(recipe_id)}')
                     success = False
             else:
-                logger.warning(f"Failed to set tabs for recipe {recipe_id}, cannot buy")
+                logger.warning(
+                    f'Failed to set tabs for {shop_recipe_name_with_id(recipe_id)}, cannot buy'
+                )
                 success = False
         return success

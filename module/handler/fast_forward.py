@@ -8,22 +8,59 @@ from module.handler.auto_search import AutoSearchHandler
 from module.logger import logger
 from module.ui.switch import Switch
 
-FAST_FORWARD = Switch("Fast_Forward", offset=(5, 5))
-FAST_FORWARD.add_state("on", check_button=FAST_FORWARD_ON)
-FAST_FORWARD.add_state("off", check_button=FAST_FORWARD_OFF)
-FLEET_LOCK = Switch("Fleet_Lock", offset=(5, 20))
-FLEET_LOCK.add_state("on", check_button=FLEET_LOCKED)
-FLEET_LOCK.add_state("off", check_button=FLEET_UNLOCKED)
-# 2026.08.27 elements on MAP_PREPARATION page are right moved 56px
-AUTO_SEARCH = Switch("Auto_Search", offset=(0, -20, 120, 20))
-AUTO_SEARCH.add_state("on", check_button=AUTO_SEARCH_ON)
-AUTO_SEARCH.add_state("on", check_button=AUTO_SEARCH_ON2)
-AUTO_SEARCH.add_state("on", check_button=AUTO_SEARCH_ON3)
-AUTO_SEARCH.add_state("on", check_button=AUTO_SEARCH_ON4)
-AUTO_SEARCH.add_state("off", check_button=AUTO_SEARCH_OFF)
-AUTO_SEARCH.add_state("off", check_button=AUTO_SEARCH_OFF2)
-AUTO_SEARCH.add_state("off", check_button=AUTO_SEARCH_OFF3)
-AUTO_SEARCH.add_state("off", check_button=AUTO_SEARCH_OFF4)
+FLEET_LOCK = Switch('Fleet_Lock', offset=(5, 20))
+FLEET_LOCK.add_state('on', check_button=FLEET_LOCKED)
+FLEET_LOCK.add_state('off', check_button=FLEET_UNLOCKED)
+
+
+class SwitchClearMode(Switch):
+    def get(self, main):
+        title = main.appear(CLEAR_MODE_TITLE, offset=(20, 20))
+        if not title:
+            return 'unknown'
+        # find check area to the right of title
+        CLEAR_MODE_CHECK.load_offset(CLEAR_MODE_TITLE)
+        # cyan letter is `on`
+        if main.image_color_count(CLEAR_MODE_CHECK.button, color=(130, 229, 255), threshold=30, count=50):
+            return 'on'
+        # white button is `off`
+        if main.image_color_count(CLEAR_MODE_CHECK.button, color=(255, 255, 255), threshold=30, count=200):
+            return 'off'
+        return 'unknown'
+
+
+CLEAR_MODE = SwitchClearMode('Clear_Mode')
+CLEAR_MODE.add_state('on', check_button=CLEAR_MODE_TITLE, click_button=CLEAR_MODE_CHECK)
+CLEAR_MODE.add_state('off', check_button=CLEAR_MODE_TITLE, click_button=CLEAR_MODE_CHECK)
+
+
+class SwitchAutoSearch(Switch):
+    def get(self, main):
+        title = None
+        if main.appear(AUTO_SEARCH_TITLE, offset=(20, 20)):
+            title = AUTO_SEARCH_TITLE
+        # [JP] has different character spacing in hard mode and normal mode
+        if not title:
+            if main.appear(AUTO_SEARCH_TITLE2, offset=(20, 20)):
+                title = AUTO_SEARCH_TITLE2
+        if not title:
+            if main.appear(AUTO_SEARCH_TITLE3, offset=(20, 20)):
+                title = AUTO_SEARCH_TITLE3
+        if not title:
+            return 'unknown'
+        # find check area to the right of title
+        AUTO_SEARCH_CHECK.load_offset(title)
+        # green square is `on`
+        if main.image_color_count(AUTO_SEARCH_CHECK.button, color=(158, 234, 94), threshold=30, count=50):
+            return 'on'
+        # no way to detect `off`
+        # return `off` if title appears and it's not `on`
+        return 'off'
+
+
+AUTO_SEARCH = SwitchAutoSearch('Auto_Search')
+AUTO_SEARCH.add_state('on', check_button=AUTO_SEARCH_TITLE, click_button=AUTO_SEARCH_CHECK)
+AUTO_SEARCH.add_state('off', check_button=AUTO_SEARCH_TITLE, click_button=AUTO_SEARCH_CHECK)
 
 
 def map_files(event):
@@ -34,22 +71,21 @@ def map_files(event):
     Returns:
         list[str]: List of map files, such as ['sp1', 'sp2', 'sp3']
     """
-    folder = f"./campaign/{event}"
+    folder = f'./campaign/{event}'
 
     if not os.path.exists(folder):
-        logger.warning(f"Map file folder: {folder} does not exist, can not get map files")
+        logger.warning(f'Map file folder: {folder} does not exist, can not get map files')
         return []
 
     files = []
     for file in os.listdir(folder):
         name, ext = os.path.splitext(file)
-        # Phase 4A: maps may be YAML data files or .py fragments
-        if ext not in (".py", ".yaml"):
+        if ext != '.py':
             continue
-        if name in ("campaign_base", "meta"):
+        if name == 'campaign_base':
             continue
         files.append(name)
-    return list(dict.fromkeys(files))
+    return files
 
 
 def to_map_input_name(name: str) -> str:
@@ -61,15 +97,15 @@ def to_map_input_name(name: str) -> str:
     d3 -> D3
     """
     # Remove whitespaces
-    name = re.sub("[ \t\n]", "", name).lower()
+    name = re.sub('[ \t\n]', '', name).lower()
     # B-1 -> B1
-    res = re.match(r"([a-zA-Z])+[- ]+(\d+)", name)
+    res = re.match(r'([a-zA-Z])+[- ]+(\d+)', name)
     if res:
-        name = f"{res.group(1)}{res.group(2)}"
+        name = f'{res.group(1)}{res.group(2)}'
     # Change back to upper case for campaign removal
     name = str(name).upper()
     # campaign_7_2 -> 7-2
-    name = name.replace("CAMPAIGN_", "").replace("_", "-")
+    name = name.replace('CAMPAIGN_', '').replace('_', '-')
     return name
 
 
@@ -83,19 +119,19 @@ def to_map_file_name(name: str) -> str:
     """
     name = str(name).lower()
     # Remove whitespaces
-    name = re.sub("[ \t\n]", "", name).lower()
+    name = re.sub('[ \t\n]', '', name).lower()
     # B-1 -> B1
-    res = re.match(r"([a-zA-Z])+[- ]+(\d+)", name)
+    res = re.match(r'([a-zA-Z])+[- ]+(\d+)', name)
     if res:
-        name = f"{res.group(1)}{res.group(2)}"
+        name = f'{res.group(1)}{res.group(2)}'
     # 7-2 to campaign_7_2
     if name and name[0].isdigit():
-        name = "campaign_" + name.replace("-", "_")
+        name = 'campaign_' + name.replace('-', '_')
     return name
 
 
 class FastForwardHandler(AutoSearchHandler):
-    map_clear_percentage = 0.0
+    map_clear_percentage = 0.
     map_achieved_star_1 = False
     map_achieved_star_2 = False
     map_achieved_star_3 = False
@@ -126,13 +162,13 @@ class FastForwardHandler(AutoSearchHandler):
         > 15-1 > 15-2 > 15-3 > 15-4
         > 16-1 > 16-2 > 16-3 > 16-4
         """,
-        "A1 > A2 > A3",
-        "B1 > B2 > B3",
-        "C1 > C2 > C3",
-        "D1 > D2 > D3",
-        "SP1 > SP2 > SP3 > SP4 > SP5",
-        "T1 > T2 > T3 > T4 > T5 > T6",
-        "HT1 > HT2 > HT3 > HT4 > HT5 > HT6",
+        'A1 > A2 > A3',
+        'B1 > B2 > B3',
+        'C1 > C2 > C3',
+        'D1 > D2 > D3',
+        'SP1 > SP2 > SP3 > SP4 > SP5',
+        'T1 > T2 > T3 > T4 > T5 > T6',
+        'HT1 > HT2 > HT3 > HT4 > HT5 > HT6',
     ]
     map_fleet_checked = False
 
@@ -148,44 +184,36 @@ class FastForwardHandler(AutoSearchHandler):
         self.map_is_100_percent_clear = self.map_clear_percentage > 0.95
         self.map_is_3_stars = self.map_achieved_star_1 and self.map_achieved_star_2 and self.map_achieved_star_3
         self.map_is_threat_safe = self.appear(MAP_GREEN, offset=(20, 20))
-        if self.config.Campaign_Name.lower() == "sp":
+        if self.config.Campaign_Name.lower() == 'sp':
             # Minor issue here
             # Using auto_search option because clear mode cannot be detected whether on SP
             # If user manually turn off auto search, alas can't enable it again
             self.map_has_clear_mode = AUTO_SEARCH.appear(main=self)
         else:
-            self.map_has_clear_mode = self.map_is_100_percent_clear and FAST_FORWARD.appear(main=self)
+            self.map_has_clear_mode = self.map_is_100_percent_clear and CLEAR_MODE.appear(main=self)
 
         # Override config
         if self.map_achieved_star_1:
             # Story before boss spawn, Attribute "story_refresh_boss" in chapter_template.lua
             self.config.MAP_HAS_MAP_STORY = False
-        self.config.MAP_CLEAR_ALL_THIS_TIME = (
-            self.config.STAR_REQUIRE_3
-            and not self.__getattribute__(f"map_achieved_star_{self.config.STAR_REQUIRE_3}")
-            and (self.config.StopCondition_MapAchievement in ["map_3_stars", "threat_safe"])
-        )
+        self.config.MAP_CLEAR_ALL_THIS_TIME = self.config.STAR_REQUIRE_3 \
+            and not self.__getattribute__(f'map_achieved_star_{self.config.STAR_REQUIRE_3}') \
+            and (self.config.StopCondition_MapAchievement in ['map_3_stars', 'threat_safe'])
 
         self.map_show_info()
 
     def map_show_info(self):
         # Log
-        logger.attr("MAP_CLEAR_ALL_THIS_TIME", self.config.MAP_CLEAR_ALL_THIS_TIME)
-        names = [
-            "map_achieved_star_1",
-            "map_achieved_star_2",
-            "map_achieved_star_3",
-            "map_is_100_percent_clear",
-            "map_is_3_stars",
-            "map_is_threat_safe",
-            "map_has_clear_mode",
-        ]
-        strip = ["map", "achieved", "is", "has"]
-        log_names = ["_".join([x for x in name.split("_") if x not in strip]) for name in names]
-        text = ", ".join([log for log, name in zip(log_names, names) if self.__getattribute__(name)])
-        text = f"{int(self.map_clear_percentage * 100)}%, " + text
-        logger.attr("Map_info", text)
-        logger.attr("StopCondition_MapAchievement", self.config.StopCondition_MapAchievement)
+        logger.attr('MAP_CLEAR_ALL_THIS_TIME', self.config.MAP_CLEAR_ALL_THIS_TIME)
+        names = ['map_achieved_star_1', 'map_achieved_star_2', 'map_achieved_star_3',
+                 'map_is_100_percent_clear', 'map_is_3_stars',
+                 'map_is_threat_safe', 'map_has_clear_mode']
+        strip = ['map', 'achieved', 'is', 'has']
+        log_names = ['_'.join([x for x in name.split('_') if x not in strip]) for name in names]
+        text = ', '.join([label for label, n in zip(log_names, names) if self.__getattribute__(n)])
+        text = f'{int(self.map_clear_percentage * 100)}%, ' + text
+        logger.attr('Map_info', text)
+        logger.attr('StopCondition_MapAchievement', self.config.StopCondition_MapAchievement)
 
     def handle_fast_forward(self):
         if not self.map_has_clear_mode:
@@ -207,7 +235,7 @@ class FastForwardHandler(AutoSearchHandler):
             self.config.MAP_HAS_DECOY_ENEMY = False
             self.map_is_clear_mode = True
             if self.config.MAP_CLEAR_ALL_THIS_TIME:
-                logger.info("MAP_CLEAR_ALL_THIS_TIME does not work with auto search, disable auto search temporarily")
+                logger.info('MAP_CLEAR_ALL_THIS_TIME does not work with auto search, disable auto search temporarily')
                 self.map_is_auto_search = False
             else:
                 self.map_is_auto_search = self.config.Campaign_UseAutoSearch
@@ -220,14 +248,14 @@ class FastForwardHandler(AutoSearchHandler):
             self.map_is_2x_book = False
             pass
 
-        state = "on" if self.config.Campaign_UseClearMode else "off"
-        changed = FAST_FORWARD.set(state, main=self)
+        state = 'on' if self.config.Campaign_UseClearMode else 'off'
+        changed = CLEAR_MODE.set(state, main=self)
         if changed:
             self.map_wait_auto_search()
         return changed
 
     def _is_map_star_active(self, button):
-        return self.image_color_count(button, color=(250, 232, 140), threshold=180, count=35)
+        return self.image_color_count(button, color=(250, 232, 140), threshold=75, count=35)
 
     def handle_map_fleet_lock(self, enable=None):
         """
@@ -240,12 +268,12 @@ class FastForwardHandler(AutoSearchHandler):
         # Fleet lock depends on if it appear on map, not depends on map status.
         # Because if already in map, there's no map status,
         if not FLEET_LOCK.appear(main=self):
-            logger.info("No fleet lock option.")
+            logger.info('No fleet lock option.')
             return False
 
         if enable is None:
             enable = self.config.Campaign_UseFleetLock
-        state = "on" if enable else "off"
+        state = 'on' if enable else 'off'
         changed = FLEET_LOCK.set(state, main=self)
 
         return changed
@@ -261,12 +289,12 @@ class FastForwardHandler(AutoSearchHandler):
         timeout = Timer(1, count=3).start()
         for _ in self.loop():
             state = AUTO_SEARCH.get(main=self)
-            logger.attr("AUTO_SEARCH", state)
-            if state != "unknown":
+            logger.attr('AUTO_SEARCH', state)
+            if state != 'unknown':
                 return True
             if timeout.reached():
                 # some maps may have clear mode but don't have auto search
-                logger.info("map wait auto search timeout")
+                logger.info('map wait auto search timeout')
                 return False
 
     def handle_auto_search(self):
@@ -281,11 +309,11 @@ class FastForwardHandler(AutoSearchHandler):
         #     return False
 
         if not AUTO_SEARCH.appear(main=self):
-            logger.info("No auto search option.")
+            logger.info('No auto search option.')
             self.map_is_auto_search = False
             return False
 
-        state = "on" if self.map_is_auto_search else "off"
+        state = 'on' if self.map_is_auto_search else 'off'
         changed = AUTO_SEARCH.set(state, main=self)
 
         return changed
@@ -301,7 +329,7 @@ class FastForwardHandler(AutoSearchHandler):
         if not self.map_is_auto_search:
             return False
 
-        logger.info("Auto search setting")
+        logger.info('Auto search setting')
         self.fleet_preparation_sidebar_ensure(3)
         self.auto_search_setting_ensure(self.config.Fleet_FleetOrder)
         if self.config.SUBMARINE:
@@ -310,7 +338,7 @@ class FastForwardHandler(AutoSearchHandler):
 
     @property
     def is_call_submarine_at_boss(self):
-        return self.config.SUBMARINE and self.config.Submarine_Mode in ["boss_only", "hunt_and_boss"]
+        return self.config.SUBMARINE and self.config.Submarine_Mode in ['boss_only', 'hunt_and_boss']
 
     def handle_auto_submarine_call_disable(self):
         """
@@ -326,16 +354,15 @@ class FastForwardHandler(AutoSearchHandler):
             return False
         # 2025.09.22, correct that fleet role settings is unlocked after clear mode
         if not self.map_is_clear_mode:
-            logger.warning("Can not set submarine call because auto search not available, assuming disabled")
-            logger.warning(
-                "Please do the followings: goto any stage -> auto search role -> set submarine role to standby"
-            )
-            logger.warning("If you already did, ignore this warning")
+            logger.warning('Can not set submarine call because auto search not available, assuming disabled')
+            logger.warning('Please do the followings: '
+                           'goto any stage -> auto search role -> set submarine role to standby')
+            logger.warning('If you already did, ignore this warning')
             return False
 
-        logger.info("Disable auto submarine call")
+        logger.info('Disable auto submarine call')
         self.fleet_preparation_sidebar_ensure(3)
-        self.auto_search_setting_ensure("sub_standby")
+        self.auto_search_setting_ensure('sub_standby')
         return True
 
     def handle_auto_search_continue(self):
@@ -345,7 +372,7 @@ class FastForwardHandler(AutoSearchHandler):
         """
         if self.appear(AUTO_SEARCH_MENU_CONTINUE, offset=self._auto_search_menu_offset, interval=2):
             self.map_is_2x_book = self.config.Campaign_Use2xBook
-            self.handle_2x_book_setting(mode="auto")
+            self.handle_2x_book_setting(mode='auto')
             if self.appear_then_click(AUTO_SEARCH_MENU_CONTINUE, offset=self._auto_search_menu_offset):
                 self.interval_reset(AUTO_SEARCH_MENU_CONTINUE)
             else:
@@ -382,7 +409,9 @@ class FastForwardHandler(AutoSearchHandler):
         stage_increase = list(self.STAGE_INCREASE)
         # Insert custom increase logic
         if self.config.STAGE_INCREASE_AB:
-            stage_increase = ["A1 > A2 > A3 > B1 > B2 > B3", *stage_increase]
+            # Prepend, kept as a concatenation: it states the ordering
+            # (custom entry first) more directly than unpacking.
+            stage_increase = ['A1 > A2 > A3 > B1 > B2 > B3'] + stage_increase  # noqa: RUF005
         custom = self.config.STAGE_INCREASE_CUSTOM
         if custom:
             if isinstance(custom, str):
@@ -392,25 +421,25 @@ class FastForwardHandler(AutoSearchHandler):
         # Increase stage
         name = to_map_input_name(name)
         for increase in stage_increase:
-            increase = [i.strip(" \t\r\n") for i in increase.split(">")]
+            increase = [i.strip(' \t\r\n') for i in increase.split('>')]
             if name in increase:
                 index = increase.index(name) + 1
                 if index < len(increase):
                     new = increase[index]
                     # Don't check main stages, assume all exist
                     # Main stages are named like campaign_7_2, but user inputs 7-2
-                    if self.config.Campaign_Event == "campaign_main":
+                    if self.config.Campaign_Event == 'campaign_main':
                         return new
                     # Check if map file exist
                     existing = map_files(self.config.Campaign_Event)
-                    logger.info(f"Existing files: {existing}")
+                    logger.info(f'Existing files: {existing}')
                     if new.lower() in existing:
                         return new
                     else:
-                        logger.info(f"Stage increase reach end, new map {new} does not exist")
+                        logger.info(f'Stage increase reach end, new map {new} does not exist')
                         return name
                 else:
-                    logger.info("Stage increase reach end")
+                    logger.info('Stage increase reach end')
                     return name
 
         return name
@@ -421,19 +450,19 @@ class FastForwardHandler(AutoSearchHandler):
             bool:
         """
 
-        if self.config.StopCondition_MapAchievement == "100_percent_clear":
+        if self.config.StopCondition_MapAchievement == '100_percent_clear':
             if self.map_is_100_percent_clear:
                 return True
 
-        if self.config.StopCondition_MapAchievement == "map_3_stars":
+        if self.config.StopCondition_MapAchievement == 'map_3_stars':
             if self.map_is_100_percent_clear and self.map_is_3_stars:
                 return True
 
-        if self.config.StopCondition_MapAchievement == "threat_safe_without_3_stars":
+        if self.config.StopCondition_MapAchievement == 'threat_safe_without_3_stars':
             if self.map_is_100_percent_clear and self.map_is_threat_safe:
                 return True
 
-        if self.config.StopCondition_MapAchievement == "threat_safe":
+        if self.config.StopCondition_MapAchievement == 'threat_safe':
             if self.map_is_100_percent_clear and self.map_is_3_stars and self.map_is_threat_safe:
                 return True
 
@@ -448,10 +477,10 @@ class FastForwardHandler(AutoSearchHandler):
             prev_stage = to_map_input_name(self.config.Campaign_Name)
             next_stage = self.campaign_name_increase(prev_stage)
             if next_stage != prev_stage:
-                logger.info(f"Stage {prev_stage} increases to {next_stage}")
+                logger.info(f'Stage {prev_stage} increases to {next_stage}')
                 self.config.Campaign_Name = next_stage
             else:
-                logger.info(f"Stage {prev_stage} cannot increase, stop at current stage")
+                logger.info(f'Stage {prev_stage} cannot increase, stop at current stage')
                 self.config.Scheduler_Enable = False
         else:
             self.config.Scheduler_Enable = False
@@ -494,22 +523,22 @@ class FastForwardHandler(AutoSearchHandler):
 
             if self.appear(check_button, offset=self._auto_search_menu_offset, interval=3):
                 box_button.load_offset(check_button)
-                enabled = self.image_color_count(box_button.button, color=(156, 255, 82), threshold=221, count=20)
-                if (status == "on" and enabled) or (status == "off" and not enabled):
+                enabled = self.image_color_count(box_button.button, color=(156, 255, 82), threshold=30, count=20)
+                if (status == 'on' and enabled) or (status == 'off' and not enabled):
                     return True
-                if (status == "on" and not enabled) or (status == "off" and enabled):
+                if (status == 'on' and not enabled) or (status == 'off' and enabled):
                     self.device.click(box_button)
 
                 clicked_threshold += 1
 
             if not clicked_threshold and confirm_timer.reached():
-                logger.info("Map do not have 2x book setting")
+                logger.info('Map do not have 2x book setting')
                 return False
 
-        logger.warning("Wait time has expired; Cannot set 2x book setting")
+        logger.warning('Wait time has expired; Cannot set 2x book setting')
         return False
 
-    def handle_2x_book_setting(self, mode="prep"):
+    def handle_2x_book_setting(self, mode='prep'):
         """
         Handles 2x book setting if applicable
 
@@ -523,19 +552,19 @@ class FastForwardHandler(AutoSearchHandler):
         """
         if not self.map_is_clear_mode:
             return False
-        if not hasattr(self, "emotion"):
-            logger.info("Emotion instance not loaded, cannot handle 2x book setting")
+        if not hasattr(self, 'emotion'):
+            logger.info('Emotion instance not loaded, cannot handle 2x book setting')
             return False
 
-        logger.info(f"Handling 2x book setting, mode={mode}.")
-        if mode == "prep":
+        logger.info(f'Handling 2x book setting, mode={mode}.')
+        if mode == 'prep':
             book_check = BOOK_CHECK_PREP
             book_box = BOOK_BOX_PREP
         else:
             book_check = BOOK_CHECK_AUTO
             book_box = BOOK_BOX_AUTO
 
-        state = "on" if self.map_is_2x_book else "off"
+        state = 'on' if self.map_is_2x_book else 'off'
         if self._set_2x_book_status(state, book_check, book_box):
             self.emotion.map_is_2x_book = self.map_is_2x_book
         else:
@@ -547,7 +576,7 @@ class FastForwardHandler(AutoSearchHandler):
 
     def handle_2x_book_popup(self):
         if self.appear(BOOK_POPUP_CHECK, offset=(20, 20)):
-            if self.handle_popup_confirm("2X_BOOK"):
+            if self.handle_popup_confirm('2X_BOOK'):
                 return True
 
         return False
@@ -573,11 +602,11 @@ class FastForwardHandler(AutoSearchHandler):
             else:
                 self.device.screenshot()
 
-            if self.image_color_count(MAP_WALK_SPEEDUP, color=(132, 255, 148), threshold=180, count=50):
-                logger.attr("Walk_Speedup", "on")
+            if self.image_color_count(MAP_WALK_SPEEDUP, color=(132, 255, 148), threshold=75, count=50):
+                logger.attr('Walk_Speedup', 'on')
                 return True
             if timeout.reached():
-                logger.warning("Wait time has expired; Cannot set map walk speedup")
+                logger.warning('Wait time has expired; Cannot set map walk speedup')
                 return False
 
             if interval.reached():
