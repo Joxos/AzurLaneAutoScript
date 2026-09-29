@@ -1,16 +1,18 @@
 name: Release
 
-# Build the desktop release asset and publish it as a GitHub Release.
-# Layout since 2026-09 (Tauri shell archived): the release is the PyInstaller
-# onedir backend (which serves the SPA and hosts `alas run desktop` via
-# pywebview). The installed app's updater (module/webui/updater.py) lists
-# releases, downloads the asset and replaces the whole bundle.
-# TODO(P0.5): NSIS setup.exe via deploy/packaging/alas_installer.nsi +
-# makensis; until then a portable zip is published.
+# Build the desktop release and publish it as a GitHub Release.
+# Layout (since 2026-09):
+#   dist/Alas/Alas.exe       the launcher (GUI subsystem, owns the data dir
+#                            and the tray; starts the sidecar without a console)
+#   dist/alas-backend/      the PyInstaller onedir sidecar (console subsystem,
+#                            so tracebacks reach backend.log instead of a modal
+#                            dialog), plus version.txt
+# The installed app's updater (module/webui/updater.py) lists releases,
+# downloads the setup exe and runs it with `/S /R`.
 
 on:
   push:
-    # Version tags (vYYYY.MM.DD, e.g. v2026.08.21); see deploy/packaging/README.md
+    # Version tags (vYYYY.MM.DD, e.g. v2026.10.01); see deploy/packaging/README.md
     tags: ["v*"]
   workflow_dispatch:
 
@@ -49,7 +51,10 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm build
 
-      - name: Build backend sidecar
+      - name: Render the app icon
+        run: uv run python dev_tools/gen_app_icon.py
+
+      - name: Build the backend sidecar
         run: |
           uv tool install "pyinstaller>=6.19"
           $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
@@ -58,20 +63,38 @@ jobs:
           # current version of the running build.
           Set-Content -Path "dist/alas-backend/version.txt" -Value "$env:GITHUB_REF_NAME" -NoNewline
 
-      - name: Build installer (NSIS) or portable zip (P0.5)
+      - name: Build the launcher
+        run: |
+          $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+          pyinstaller --clean --noconfirm deploy/packaging/launcher.spec
+
+      # Smoke the two executables before shipping them: a bundle that cannot
+      # even report its version would otherwise be published as a release.
+      - name: Smoke the built executables
+        shell: pwsh
+        run: |
+          $sidecar = "dist/alas-backend/alas-backend.exe"
+          & $sidecar version
+          if ($LASTEXITCODE -ne 0) { throw "sidecar version failed" }
+          if (-not (Test-Path "dist/Alas/Alas.exe")) { throw "launcher missing" }
+          & "dist/Alas/Alas.exe" --help 2>&1 | Out-Null
+          "sidecar and launcher present"
+
+      - name: Build the installer
         id: build
         shell: pwsh
         run: |
           $nsi = "deploy/packaging/alas_installer.nsi"
-          if (Test-Path $nsi) {
-            makensis $nsi
-            Copy-Item -ErrorAction Stop "dist/Alas_${{ github.ref_name }}_x64-setup.exe" "Alas_${{ github.ref_name }}_x64-setup.exe" -Force
-            "asset=Alas_${{ github.ref_name }}_x64-setup.exe" >> $env:GITHUB_OUTPUT
-          } else {
-            Write-Host "alas_installer.nsi not present (P0.5) - publishing portable zip"
-            Compress-Archive -Path "dist/alas-backend" -DestinationPath "Alas_${{ github.ref_name }}_x64-portable.zip" -Force
+          if (-not (Test-Path $nsi)) {
+            Write-Host "alas_installer.nsi missing - falling back to a portable zip"
+            Compress-Archive -Path "dist/Alas", "dist/alas-backend" -DestinationPath "Alas_${{ github.ref_name }}_x64-portable.zip" -Force
             "asset=Alas_${{ github.ref_name }}_x64-portable.zip" >> $env:GITHUB_OUTPUT
+            exit 0
           }
+          makensis "/DVERSION=${{ github.ref_name }}" $nsi
+          $asset = "Alas_${{ github.ref_name }}_x64-setup.exe"
+          if (-not (Test-Path $asset)) { throw "makensis did not produce $asset" }
+          "asset=$asset" >> $env:GITHUB_OUTPUT
           Get-ChildItem "Alas_*" | ForEach-Object { $_.FullName }
 
       - name: Publish release

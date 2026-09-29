@@ -7,6 +7,7 @@ project regardless of how pytest is invoked.
 
 import logging
 import sys
+from contextlib import suppress
 from pathlib import Path
 
 import pytest
@@ -44,12 +45,18 @@ def _bridge_loguru_into_caplog():
     logging hierarchy, so a test that asserts on log messages would see
     nothing. Forward every record into a stdlib logger for the duration of
     each test.
+
+    Best effort: importing `module.logger` inside a test re-installs loguru's
+    handlers and drops this sink, so removing it afterwards may find nothing.
     """
     handler_id = _loguru.add(_forward_to_logging, level=0, format="{message}")
     try:
         yield
     finally:
-        _loguru.remove(handler_id)
+        # already gone when a test imported module.logger (it re-installs the
+        # project's own handlers), which is not a failure
+        with suppress(ValueError):
+            _loguru.remove(handler_id)
 
 
 @pytest.fixture(autouse=True)

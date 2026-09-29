@@ -1,15 +1,14 @@
 """Release-based updater for the desktop app (single channel).
 
-Installed builds update by whole-release replacement: the backend pulls
-release metadata from the configured GitHub repository, downloads the
-release's NSIS setup exe and runs it silently. The installer carries the
-new sidecar (bundle.resources), kills the running app (the shell's
-kill-on-close job reaps this backend tree), overwrites shell and sidecar
-files and restarts the app.
+Installed builds update by whole-release replacement: the backend pulls the
+release list from the configured GitHub repository, downloads that release's
+NSIS setup exe and runs it silently. The installer asks the launcher to exit
+(`Alas.exe --quit`), replaces the program directory and relaunches the app
+(`/R`).
 
-Source checkouts are not special-cased (single UI by design): install
-reports an error because there is no installed build to replace.
-Developers update with git manually.
+Source checkouts are not special-cased (single UI by design): install reports
+an error because there is no installed build to replace. Developers update
+with git manually.
 """
 
 import os
@@ -26,6 +25,9 @@ from module.logger import logger
 
 GITHUB_API = "https://api.github.com"
 DEFAULT_REPO = "Joxos/AzurLaneAutoScript"
+# The installer must outlive this process: it replaces the files the backend
+# is running from, so it runs detached instead of as a child.
+_DETACHED = 0x0000_0008 | 0x0000_0200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
 
 
 class Updater:
@@ -155,7 +157,10 @@ class Updater:
             (a for a in release["assets"] if a["name"].lower().endswith(".exe") and "setup" in a["name"].lower()), None
         )
         if setup_asset is None:
-            raise RuntimeError("Release is missing the setup exe asset")
+            raise RuntimeError(
+                "Release has no setup exe (this build updates through the NSIS installer; "
+                "a portable zip has to be unpacked by hand)"
+            )
 
         def _progress(stage: str, done: int, total: int):
             frac = 0 if not total else min(done / total, 1.0)
@@ -166,29 +171,32 @@ class Updater:
 
         setup_path = self._download(setup_asset, os.path.join(tmp, setup_asset["name"]), lambda d, t: _progress("downloading installer", d, t))
 
-        # Stop running tasks before the installer replaces files under them.
+        # Stop the bot first: it writes into config/ and log/ under the data
+        # directory, and the installer replaces the program directory.
         self._stop_tasks()
 
-        # Run the NSIS installer silently: it carries the new sidecar
-        # (bundle.resources), kills the running app (the job object reaps
-        # this backend tree), overwrites the shell and sidecar files and
-        # restarts the app. /R makes the installer relaunch the app after
-        # a silent install (stock tauri NSIS onInstSuccess hook).
-        # CREATE_BREAKAWAY_FROM_JOB: the installer inherits the shell's
-        # kill-on-close job through this process; it must survive the job
-        # teardown (which fires the moment the installer kills the shell)
-        # or the install would be reaped mid-flight and never relaunch.
+        # Let the launcher hand the app over. The installer runs as a
+        # separate process and must survive this backend going away - which is
+        # why it is started detached and this process exits right after.
         with self._lock:
-            self.install["stage"] = "installing"
-            self.install["progress"] = 100
+            if self.install is not None:
+                self.install["stage"] = "installing"
+                self.install["progress"] = 100
         logger.info(f"Running installer {setup_path} /S /R")
-        creationflags = 0x0100_0000 if os.name == "nt" else 0  # CREATE_BREAKAWAY_FROM_JOB
-        subprocess.run([setup_path, "/S", "/R"], check=True, timeout=900, creationflags=creationflags)
+        subprocess.Popen(
+            [setup_path, "/S", "/R"],
+            close_fds=True,
+            creationflags=_DETACHED if os.name == "nt" else 0,
+        )
 
     @staticmethod
     def _download(asset: dict, path: str, progress) -> str:
         logger.info(f"Downloading {asset['name']} ({asset.get('size', 0)} bytes)")
-        with requests.get(asset["url"], stream=True, timeout=60, headers={"User-Agent": "alas"}) as resp:
+        # A mirror (proxy-friendly CDN) can be set for networks where
+        # github.com is slow; the release list keeps coming from the API.
+        base = (os.environ.get("ALAS_UPDATE_MIRROR") or "").rstrip("/")
+        url = f"{base}/{asset['name']}" if base else asset["url"]
+        with requests.get(url, stream=True, timeout=60, headers={"User-Agent": "alas"}) as resp:
             resp.raise_for_status()
             total = int(resp.headers.get("Content-Length") or asset.get("size") or 0)
             done = 0

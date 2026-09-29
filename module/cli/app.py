@@ -26,7 +26,7 @@ app = typer.Typer(
 run_app = typer.Typer(help="Run the bot.", no_args_is_help=True, add_completion=False)
 app.add_typer(run_app, name="run")
 
-build_app = typer.Typer(help="Build frontend / sidecar / installer.", no_args_is_help=True, add_completion=False)
+build_app = typer.Typer(help="Build frontend / sidecar / launcher / installer.", no_args_is_help=True, add_completion=False)
 app.add_typer(build_app, name="build")
 
 @run_app.command("headless")
@@ -96,9 +96,17 @@ def build_sidecar() -> None:
     _impl()
 
 
+@build_app.command("launcher")
+def build_launcher() -> None:
+    """Build the desktop launcher (GUI subsystem, the user's entry point)."""
+    from module.cli.build import launcher as _impl
+
+    _impl()
+
+
 @build_app.command("installer")
 def build_installer() -> None:
-    """Build the NSIS installer (P0.5 scope; not implemented yet)."""
+    """Build the NSIS installer (deploy/packaging/alas_installer.nsi)."""
     from module.cli.build import installer as _impl
 
     _impl()

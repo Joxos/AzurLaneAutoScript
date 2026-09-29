@@ -200,12 +200,17 @@ _file_sink_id = None
 _func_sink_id = None
 _log_file = ""
 
-# Ensure running in Alas root folder (source runs). Frozen sidecars run
-# from the install directory (the shell seeds config/assets/bin there and
-# launches the backend with it as CWD) and must never chdir into their own
-# bundle, which updates replace wholesale.
+# Ensure running in Alas root folder (source runs). Frozen sidecars run from
+# whatever CWD they were started with: the launcher (deploy/packaging/
+# launcher.py) sets it to the user data directory, because that is where the
+# CWD-relative `config/ log/ assets/ bin/` live, and the install directory
+# gets replaced wholesale on every update.
 if not getattr(sys, "frozen", False):
     os.chdir(os.path.join(os.path.dirname(__file__), "../"))
+else:
+    data_dir = os.environ.get("ALAS_DATA_DIR")
+    if data_dir and os.path.isdir(data_dir):
+        os.chdir(data_dir)
 
 # Add file logger
 pyw_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]

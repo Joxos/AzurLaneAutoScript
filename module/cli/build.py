@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -39,21 +40,39 @@ def frontend() -> None:
     logger.info(f"frontend built: {WEBAPP_DIR / 'dist'}")
 
 
-def sidecar() -> None:
-    """Build the PyInstaller onedir backend (deploy/packaging/alas_backend.spec)."""
-    spec = REPO_ROOT / "deploy" / "packaging" / "alas_backend.spec"
+def _pyinstaller(spec: Path, what: str) -> None:
     if not spec.is_file():
-        logger.error(f"packaging spec not found: {spec} (alas_backend.spec 仍为 DRAFT?)")
+        logger.error(f"packaging spec not found: {spec}")
         raise SystemExit(1)
     try:
         import PyInstaller  # noqa: F401
     except ImportError:
         logger.error("PyInstaller not installed (`uv sync --extra dev` 或 pip install pyinstaller)")
         raise SystemExit(1)
-    _run([sys.executable, "-m", "PyInstaller", str(spec)], REPO_ROOT)
+    _run([sys.executable, "-m", "PyInstaller", "--clean", "--noconfirm", str(spec)], REPO_ROOT)
+    logger.info(f"{what} built")
+
+
+def sidecar() -> None:
+    """Build the PyInstaller onedir backend (deploy/packaging/alas_backend.spec)."""
+    _pyinstaller(REPO_ROOT / "deploy" / "packaging" / "alas_backend.spec", "sidecar")
     logger.info(f"sidecar built: {REPO_ROOT / 'dist' / 'alas-backend'}")
 
 
+def launcher() -> None:
+    """Build the desktop launcher (deploy/packaging/launcher.spec)."""
+    # The installer takes an .ico; the SPA ships a PNG, so render it first.
+    _run([sys.executable, str(REPO_ROOT / "dev_tools" / "gen_app_icon.py")], REPO_ROOT)
+    _pyinstaller(REPO_ROOT / "deploy" / "packaging" / "launcher.spec", "launcher")
+    logger.info(f"launcher built: {REPO_ROOT / 'dist' / 'Alas'}")
+
+
 def installer() -> None:
-    """Build the NSIS installer (P0.5 scope, see design doc §2.4/§6)."""
-    logger.warning("NSIS installer 尚未实现(P0.5 范围);当前请使用 `alas build frontend` + `alas build sidecar` 产物")
+    """Build the NSIS installer (deploy/packaging/alas_installer.nsi)."""
+    makensis = shutil.which("makensis")
+    if makensis is None:
+        logger.error("makensis not found in PATH (install NSIS, or let the release workflow build it)")
+        raise SystemExit(1)
+    version = os.environ.get("ALAS_VERSION", "dev")
+    _run([makensis, f"/DVERSION={version}", str(REPO_ROOT / "deploy" / "packaging" / "alas_installer.nsi")], REPO_ROOT)
+    logger.info(f"installer built: Alas_{version}_x64-setup.exe")
