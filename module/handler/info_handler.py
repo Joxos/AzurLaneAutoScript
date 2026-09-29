@@ -27,6 +27,90 @@ def info_letter_preprocess(image):
     return image
 
 
+# ---------------------------------------------------------------------------
+# Info-handler flows: the small wait/ensure loops as flow data (B2a).
+# ---------------------------------------------------------------------------
+
+
+def _info_bar_count_g(ctx, args=None, **kw):
+    return bool(ctx.owner.info_bar_count())
+
+
+def _handle_info_bar_g(ctx, args=None, **kw):
+    handled = ctx.owner.handle_info_bar()
+    ctx.owner._flow_once_handled = ctx.owner._flow_once_handled or handled
+    return handled
+
+
+def _story_skip_g(ctx, args=None, **kw):
+    return ctx.owner.story_skip()
+
+
+def _manjuu_g(ctx, args=None, **kw):
+    return bool(ctx.owner.manjuu_count())
+
+
+def _simple_wait_flow(name: str, check: dict) -> dict:
+    """Wait-until condition T2 flow (exit when check matches, value None)."""
+    return {
+        "name": name,
+        "entry": "s",
+        "states": {
+            "s": {
+                "exit": {"check": check, "on_success": {"exit": None}},
+                "rules": [],
+            },
+        },
+    }
+
+
+def _ensure_no_info_bar_flow(timeout: float) -> dict:
+    return {
+        "name": "ensure_no_info_bar",
+        "entry": "s",
+        "states": {
+            "s": {
+                "rules": [
+                    {"name": "info_bar", "check": {"custom": _info_bar_count_g},
+                     "action": {"call": _handle_info_bar_g}, "stop": False},
+                ],
+                "on_timeout": {"seconds": timeout, "mode": "exit", "value": None},
+            },
+        },
+    }
+
+
+def _ensure_no_story_flow() -> dict:
+    return {
+        "name": "ensure_no_story",
+        "entry": "s",
+        "states": {
+            "s": {
+                "rules": [
+                    {"name": "story", "action": {"call_if": _story_skip_g},
+                     "on_handled": {"extend_timeout": 3}},
+                ],
+                "on_timeout": {"seconds": 3, "count": 6, "mode": "exit", "value": None},
+            },
+        },
+    }
+
+
+def _wait_until_manjuu_disappear_flow() -> dict:
+    return {
+        "name": "wait_until_manjuu_disappear",
+        "entry": "s",
+        "states": {
+            "s": {
+                "exit": {"check": {"not": {"custom": _manjuu_g}},
+                         "confirm": {"seconds": 1.5, "count": 3},
+                         "on_success": {"exit": None}},
+                "rules": [],
+            },
+        },
+    }
+
+
 class InfoHandler(ModuleBase):
     """
     Class to handle all kinds of message.
@@ -57,10 +141,11 @@ class InfoHandler(ModuleBase):
         return len(peaks)
 
     def wait_until_info_bar_disappear(self):
-        while 1:
-            self.device.screenshot()
-            if not self.info_bar_count():
-                break
+        from module.flow.runtime import run_flow
+
+        run_flow(
+            _simple_wait_flow("wait_until_info_bar_disappear", {"not": {"custom": _info_bar_count_g}})
+        )
 
     def handle_info_bar(self):
         if self.info_bar_count():
@@ -70,22 +155,13 @@ class InfoHandler(ModuleBase):
             return False
 
     def ensure_no_info_bar(self, timeout=0.6, skip_first_screenshot=True):
-        timeout = Timer(timeout).start()
-        handled = False
-        while 1:
-            if skip_first_screenshot:
-                skip_first_screenshot = False
-            else:
-                self.device.screenshot()
+        from module.flow.runtime import run_flow
 
-            if self.handle_info_bar():
-                handled = True
-
-            # End
-            if timeout.reached():
-                break
-
-        return handled
+        self._flow_once_handled = False
+        run_flow(
+            _ensure_no_info_bar_flow(timeout)
+        )
+        return self._flow_once_handled
 
     """
     Popup info
@@ -451,19 +527,12 @@ class InfoHandler(ModuleBase):
         return self.story_skip(drop=drop)
 
     def ensure_no_story(self, skip_first_screenshot=True):
+        from module.flow.runtime import run_flow
+
         logger.info("Ensure no story")
-        story_timer = Timer(3, count=6).start()
-        while 1:
-            if skip_first_screenshot:
-                skip_first_screenshot = False
-            else:
-                self.device.screenshot()
-
-            if self.story_skip():
-                story_timer.reset()
-
-            if story_timer.reached():
-                break
+        run_flow(
+            _ensure_no_story_flow()
+        )
 
 
     """
@@ -516,15 +585,9 @@ class InfoHandler(ModuleBase):
         """
         # Abuse of notation. Template do not have readable name, so add string here.
         self.device.stuck_record_add("TEMPLATE_MANJUU")
-        timer = Timer(1.5, count=3).start()
-        while 1:
-            self.device.screenshot()
-            if self.manjuu_count():
-                timer.reset()
-            else:
-                if timer.reached():
-                    logger.info("Manjuu disappeared")
-                    break
+        from module.flow.runtime import run_flow
+
+        run_flow(_wait_until_manjuu_disappear_flow())
 
     def handle_manjuu(self):
         """

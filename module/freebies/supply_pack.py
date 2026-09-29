@@ -1,4 +1,5 @@
 from calendar import day_name
+from typing import Any
 
 from module.base.timer import Timer
 from module.campaign.campaign_status import CampaignStatus
@@ -9,6 +10,98 @@ from module.logger import logger
 from module.ocr.ocr import Digit
 from module.shop.assets import SHOP_OCR_OIL, SHOP_OCR_OIL_CHECK
 from module.ui.page import page_shop, page_supply_pack
+
+# ---------------------------------------------------------------------------
+# supply pack flows (B3a, cluster A + OCR T3).
+# ---------------------------------------------------------------------------
+
+
+def _sp_end(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    owner = ctx.owner
+    supply_pack = (args or {}).get("supply_pack")
+    condition = owner.appear(page_supply_pack.check_button, offset=(20, 20)) and not owner.appear(
+        supply_pack, offset=(20, 20)
+    )
+    if not condition:
+        owner._sp_confirm.reset()
+        return False
+    return owner._sp_confirm.reached()
+
+
+def _sp_click(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    ctx.owner.device.click((args or {}).get("supply_pack"))
+    ctx.owner._sp_confirm.reset()
+    return True
+
+
+def _sp_buy_confirm(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    owner = ctx.owner
+    owner._sp_confirm.reset()
+    return owner.appear_then_click(BUY_CONFIRM, offset=(20, 20), interval=3)
+
+
+def _sp_popup_confirm(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    owner = ctx.owner
+    supply_pack = (args or {}).get("supply_pack")
+    handled = owner.handle_popup_confirm("BUY_SUPPLY_PACK")
+    if handled:
+        owner.interval_reset(supply_pack)
+        owner.interval_reset(BUY_CONFIRM)
+        ctx.params["_sp_executed"] = True
+    return handled
+
+
+def _supply_pack_buy_flow(supply_pack) -> dict[str, Any]:
+    reset = {"reset_confirm": "_sp_confirm"}
+    return {
+        "name": "supply_pack_buy",
+        "entry": "s",
+        "states": {
+            "s": {
+                "exit": {"check": {"custom": _sp_end, "args": {"supply_pack": supply_pack}},
+                         "on_success": {"exit": {"__var__": "_sp_executed"}}},
+                "rules": [
+                    {"name": "buy", "check": {"button": supply_pack, "offset": (200, 20), "interval": 3},
+                     "action": {"call": _sp_click, "args": {"supply_pack": supply_pack}},
+                     "attempts": {"limit": 3, "on_exceed": {"exit": {"__var__": "_sp_executed"}}}, **reset},
+                    {"name": "buy_confirm", "action": {"call_if": _sp_buy_confirm}, **reset},
+                    {"name": "popup_confirm",
+                     "action": {"call_if": _sp_popup_confirm, "args": {"supply_pack": supply_pack}}},
+                    {"name": "get_items1",
+                     "check": {"button": GET_ITEMS_1, "offset": (30, 30), "interval": 3},
+                     "action": {"click": GET_ITEMS_1}, **reset},
+                    {"name": "get_items2",
+                     "check": {"button": GET_ITEMS_2, "offset": (30, 30), "interval": 3},
+                     "action": {"click": GET_ITEMS_2}, **reset},
+                ],
+                "on_timeout": {"seconds": 120, "mode": "warn"},
+            },
+        },
+    }
+
+
+def _oil_done(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    owner = ctx.owner
+    if not owner.appear(SHOP_OCR_OIL_CHECK, offset=(10, 2)):
+        return False
+    ocr = Digit(SHOP_OCR_OIL, name="OCR_OIL", letter=(247, 247, 247), threshold=128)
+    amount = ocr.ocr(owner.device.image)
+    ctx.params["_oil_amount"] = amount
+    return amount >= 100
+
+
+def _get_oil_flow() -> dict[str, Any]:
+    return {
+        "name": "get_oil",
+        "entry": "s",
+        "states": {
+            "s": {
+                "exit": {"check": {"custom": _oil_done}, "on_success": {"exit": {"__var__": "_oil_amount"}}},
+                "rules": [],
+                "on_timeout": {"seconds": 1, "count": 2, "mode": "exit", "value": {"__var__": "_oil_amount"}},
+            },
+        },
+    }
 
 
 class SupplyPack(CampaignStatus):
@@ -21,49 +114,19 @@ class SupplyPack(CampaignStatus):
         Returns:
             bool: If bought.
         """
+        from module.flow.runtime import run_flow
+
         logger.hr("Supply pack buy")
         [self.interval_clear(asset) for asset in [GET_ITEMS_1, GET_ITEMS_2, supply_pack, BUY_CONFIRM]]
 
         logger.info(f"Buying {supply_pack}")
-        executed = False
-        click_count = 0
-        confirm_timer = Timer(1, count=3).start()
-        while 1:
-            if skip_first_screenshot:
-                skip_first_screenshot = False
-            else:
-                self.device.screenshot()
-
-            if self.appear(supply_pack, offset=(200, 20), interval=3):
-                if click_count >= 3:
-                    logger.warning(f"Failed to buy {supply_pack} after 3 trail, probably reached resource limit, skip")
-                    break
-                self.device.click(supply_pack)
-                click_count += 1
-                confirm_timer.reset()
-                continue
-            if self.appear_then_click(BUY_CONFIRM, offset=(20, 20), interval=3):
-                confirm_timer.reset()
-                continue
-            if self.handle_popup_confirm("BUY_SUPPLY_PACK"):
-                self.interval_reset(supply_pack)
-                self.interval_reset(BUY_CONFIRM)
-                executed = True
-                continue
-            for button in [GET_ITEMS_1, GET_ITEMS_2]:
-                if self.appear_then_click(button, offset=(30, 30), interval=3):
-                    confirm_timer.reset()
-                    continue
-
-            # End
-            if self.appear(page_supply_pack.check_button, offset=(20, 20)) and not self.appear(
-                supply_pack, offset=(20, 20)
-            ):
-                if confirm_timer.reached():
-                    break
-            else:
-                confirm_timer.reset()
-
+        self._sp_confirm = Timer(1, count=3).start()
+        executed = bool(
+            run_flow(
+                _supply_pack_buy_flow(supply_pack), owner=self, skip_first=skip_first_screenshot,
+                params={"_sp_executed": False},
+            )
+        )
         logger.info(f"Supply pack buy finished, executed={executed}")
         return executed
 
@@ -101,27 +164,14 @@ class SupplyPack_250814(SupplyPack):
         Returns:
             int: Oil amount
         """
-        amount = 0
-        timeout = Timer(1, count=2).start()
-        while 1:
-            if skip_first_screenshot:
-                skip_first_screenshot = False
-            else:
-                self.device.screenshot()
+        from module.flow.runtime import run_flow
 
-            if timeout.reached():
-                logger.warning("Get oil timeout")
-                break
-
-            if not self.appear(SHOP_OCR_OIL_CHECK, offset=(10, 2)):
-                logger.info("No oil icon")
-                continue
-            ocr = Digit(SHOP_OCR_OIL, name="OCR_OIL", letter=(247, 247, 247), threshold=128)
-            amount = ocr.ocr(self.device.image)
-            if amount >= 100:
-                break
-
-        return amount
+        return int(
+            run_flow(
+                _get_oil_flow(), owner=self, skip_first=skip_first_screenshot, params={"_oil_amount": 0}
+            )
+            or 0
+        )
 
     def goto_supply_pack(self, skip_first_screenshot=True):
         """

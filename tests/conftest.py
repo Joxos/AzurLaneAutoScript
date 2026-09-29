@@ -50,3 +50,16 @@ def _bridge_loguru_into_caplog():
         yield
     finally:
         _loguru.remove(handler_id)
+
+
+@pytest.fixture(autouse=True)
+def _reset_flow_runtime():
+    """Each test gets a fresh flow engine: the session runtime is a process
+    singleton, so tests that reach module flows through run_flow() must not
+    share device/config bindings. Tests constructing FlowEngine directly are
+    unaffected."""
+    from module.flow.runtime import set_runtime
+
+    set_runtime(None)
+    yield
+    set_runtime(None)

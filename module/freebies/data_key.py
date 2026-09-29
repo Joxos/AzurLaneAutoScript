@@ -9,6 +9,36 @@ from module.ui.ui import UI
 DATA_KEY = DigitCounter(OCR_DATA_KEY, letter=(255, 247, 247), threshold=64)
 
 
+def _data_key_end(ctx, args=None, **kw):
+    if ctx.owner.appear(WAR_ARCHIVES_CHECK, offset=(20, 20)) and ctx.owner.appear(
+        DATA_KEY_COLLECTED, offset=(20, 20)
+    ):
+        logger.info("Data key collect finished")
+        return True
+    return False
+
+
+def _data_key_flow():
+    return {
+        "name": "data_key_collect", "entry": "s",
+        "states": {"s": {
+            "exit": {"check": {"custom": _data_key_end}, "on_success": {"exit": None}},
+            "rules": [
+                {"name": "collect", "check": {"button": DATA_KEY_COLLECT, "offset": (20, 20), "interval": 3},
+                 "action": {"click": DATA_KEY_COLLECT}},
+                {"name": "get_items", "check": {"button": GET_ITEMS_1, "offset": 20, "interval": 3},
+                 "action": {"click": DATA_KEY_COLLECT}},
+                {"name": "popup_confirm", "action": {"call_if": lambda ctx, args=None, **kw:
+                                                     ctx.owner.handle_popup_confirm("DATA_KEY_LIMIT")}},
+                {"name": "back_to_archives",
+                 "check": {"button": CAMPAIGN_MENU_GOTO_WAR_ARCHIVES, "offset": (20, 20), "interval": 3},
+                 "action": {"click": CAMPAIGN_MENU_GOTO_WAR_ARCHIVES}},
+            ],
+            "on_timeout": {"seconds": 60, "mode": "warn"},
+        }},
+    }
+
+
 class DataKey(UI):
     def _data_key_collect(self, skip_first_screenshot=True):
         """
@@ -16,30 +46,12 @@ class DataKey(UI):
             in: page_archives
             out: page_archives, DATA_KEY_COLLECTED
         """
+        from module.flow.runtime import run_flow
+
         logger.hr("Data Key Collect")
-        while 1:
-            if skip_first_screenshot:
-                skip_first_screenshot = False
-            else:
-                self.device.screenshot()
-
-            if self.appear_then_click(DATA_KEY_COLLECT, offset=(20, 20), interval=3):
-                continue
-            if self.appear(GET_ITEMS_1, offset=20, interval=3):
-                self.device.click(DATA_KEY_COLLECT)
-                continue
-            if self.handle_popup_confirm("DATA_KEY_LIMIT"):
-                # If it's in 29/30 means user is not doing war achieves frequently,
-                # no need to bother losing one key, just make it fulfilled.
-                continue
-            if self.appear_then_click(CAMPAIGN_MENU_GOTO_WAR_ARCHIVES, offset=(20, 20), interval=3):
-                # Sometimes quit to page_campaign_menu accidentally.
-                continue
-
-            # End
-            if self.appear(WAR_ARCHIVES_CHECK, offset=(20, 20)) and self.appear(DATA_KEY_COLLECTED, offset=(20, 20)):
-                logger.info("Data key collect finished")
-                break
+        run_flow(
+            _data_key_flow(), owner=self, skip_first=skip_first_screenshot
+        )
 
     def data_key_collect(self):
         """

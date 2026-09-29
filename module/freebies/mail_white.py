@@ -1,3 +1,5 @@
+from typing import Any
+
 from module.base.decorator import cached_property
 from module.base.timer import Timer
 from module.combat.assets import GET_ITEMS_1, GET_ITEMS_2
@@ -6,6 +8,175 @@ from module.logger import logger
 from module.ui.page import GOTO_MAIN_WHITE, page_mail, page_main, page_main_white
 from module.ui.setting import Setting
 from module.ui.ui import UI
+
+# ---------------------------------------------------------------------------
+# Mail flow helpers (B3b): the four loops as flow data.
+# ---------------------------------------------------------------------------
+
+
+def _mail_enter_end(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    owner = ctx.owner
+    if owner.appear(MAIL_BATCH_CLAIM, offset=(20, 20)):
+        logger.info("Mail entered")
+        ctx.params["_mail_enter_result"] = True
+        return True
+    if owner.appear(MAIL_WHITE_EMPTY, offset=(20, 20)):
+        logger.info("Mail empty")
+        ctx.params["_mail_enter_result"] = False
+        return True
+    if not ctx.params.get("_mail_has_mail") and owner.appear(GOTO_MAIN_WHITE, offset=(20, 20)):
+        owner._mail_enter_timeout = owner._mail_enter_timeout or Timer(0.6, count=1).start()
+        if owner._mail_enter_timeout.reached():
+            logger.info("Mail empty, wait GOTO_MAIN_WHITE timeout")
+            ctx.params["_mail_enter_result"] = False
+            return True
+    owner._mail_enter_timeout = None
+    return False
+
+
+def _mail_manage_click(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    if ctx.owner.appear_then_click(MAIL_MANAGE, offset=(30, 30), interval=3):
+        ctx.params["_mail_has_mail"] = True
+    return True
+
+
+def _mail_goto(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    return ctx.owner.ui_main_appear_then_click(page_mail, offset=(30, 30), interval=3)
+
+
+def _mail_reward_h(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    owner = ctx.owner
+    if owner.appear(GET_ITEMS_1, offset=(30, 30), interval=3):
+        logger.info(f"{GET_ITEMS_1} -> {MAIL_BATCH_CLAIM}")
+        owner.device.click(MAIL_BATCH_CLAIM)
+        return True
+    if owner.appear(GET_ITEMS_2, offset=(30, 30), interval=3):
+        logger.info(f"{GET_ITEMS_2} -> {MAIL_BATCH_CLAIM}")
+        owner.device.click(MAIL_BATCH_CLAIM)
+        return True
+    return False
+
+
+def _mail_quit_end(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    return ctx.owner.ui_page_appear(page_main)
+
+
+def _mail_quit_msg(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    owner = ctx.owner
+    if owner.appear(MAIL_BATCH_CLAIM, offset=(30, 30), interval=3):
+        logger.info(f"{MAIL_BATCH_CLAIM} -> {MAIL_MANAGE}")
+        owner.device.click(MAIL_MANAGE)
+        return True
+    return False
+
+
+def _mail_claim_done(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    return bool(ctx.params.get("_mail_claimed")) and ctx.owner.appear(MAIL_BATCH_CLAIM, offset=(30, 30))
+
+
+def _mail_claim_click(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    if ctx.params.get("_mail_claimed"):
+        return False
+    return ctx.owner.appear_then_click(MAIL_BATCH_CLAIM, offset=(30, 30), interval=3)
+
+
+def _mail_claim_popup(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    handled = ctx.owner.handle_popup_confirm("MAIL_CLAIM")
+    if handled:
+        ctx.params["_mail_claimed"] = True
+    return handled
+
+
+def _mail_reward_h_claim(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    handled = _mail_reward_h(ctx, args)
+    if handled:
+        ctx.params["_mail_claimed"] = True
+    return handled
+
+
+def _mail_delete_done(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    return bool(ctx.params.get("_mail_deleted")) and ctx.owner.appear(MAIL_BATCH_DELETE, offset=(30, 30))
+
+
+def _mail_delete_click(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    if ctx.params.get("_mail_deleted"):
+        return False
+    return ctx.owner.appear_then_click(MAIL_BATCH_DELETE, offset=(30, 30), interval=3)
+
+
+def _mail_delete_popup(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    handled = ctx.owner.handle_popup_confirm("MAIL_CLAIM")
+    if handled:
+        ctx.params["_mail_deleted"] = True
+    return handled
+
+
+def _mail_enter_flow() -> dict[str, Any]:
+    return {
+        "name": "mail_enter", "entry": "s",
+        "states": {"s": {
+            "exit": {"check": {"custom": _mail_enter_end},
+                     "on_success": {"exit": {"__var__": "_mail_enter_result"}}},
+            "rules": [
+                {"name": "manage", "action": {"call_if": _mail_manage_click}},
+                {"name": "goto_mail", "action": {"call_if": _mail_goto}},
+                {"name": "reward", "action": {"call_if": _mail_reward_h}},
+            ],
+            "on_timeout": {"seconds": 60, "mode": "warn"},
+        }},
+    }
+
+
+def _mail_quit_flow() -> dict[str, Any]:
+    return {
+        "name": "mail_quit", "entry": "s",
+        "states": {"s": {
+            "exit": {"check": {"custom": _mail_quit_end}, "on_success": {"exit": None}},
+            "rules": [
+                {"name": "popup_confirm", "action": {"call_if": _popup_confirm_mail_quit}},
+                {"name": "batch_claim", "action": {"call_if": _mail_quit_msg}},
+                {"name": "goto_main_white",
+                 "check": {"button": GOTO_MAIN_WHITE, "offset": (30, 30), "interval": 3},
+                 "action": {"click": GOTO_MAIN_WHITE}},
+                {"name": "reward", "action": {"call_if": _mail_reward_h}},
+            ],
+            "on_timeout": {"seconds": 60, "mode": "warn"},
+        }},
+    }
+
+
+def _mail_claim_flow() -> dict[str, Any]:
+    return {
+        "name": "mail_claim_execute", "entry": "s",
+        "states": {"s": {
+            "exit": {"check": {"custom": _mail_claim_done}, "on_success": {"exit": None}},
+            "rules": [
+                {"name": "claim", "action": {"call_if": _mail_claim_click}},
+                {"name": "popup_confirm", "action": {"call_if": _mail_claim_popup}},
+                {"name": "reward", "action": {"call_if": _mail_reward_h_claim}},
+            ],
+            "on_timeout": {"seconds": 60, "mode": "warn"},
+        }},
+    }
+
+
+def _mail_delete_flow() -> dict[str, Any]:
+    return {
+        "name": "mail_delete", "entry": "s",
+        "states": {"s": {
+            "exit": {"check": {"custom": _mail_delete_done}, "on_success": {"exit": None}},
+            "rules": [
+                {"name": "delete", "action": {"call_if": _mail_delete_click}},
+                {"name": "popup_confirm", "action": {"call_if": _mail_delete_popup}},
+                {"name": "reward", "action": {"call_if": _mail_reward_h}},
+            ],
+            "on_timeout": {"seconds": 60, "mode": "warn"},
+        }},
+    }
+
+
+def _popup_confirm_mail_quit(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    return ctx.owner.handle_popup_confirm("MAIL_QUIT")
 
 
 class MailSelectSetting(Setting):
@@ -43,37 +214,17 @@ class MailWhite(UI):
             in: page_main_white or MAIL_MANAGE
             out: MAIL_BATCH_CLAIM
         """
+        from module.flow.runtime import run_flow
+
         logger.info("Mail enter")
         self.interval_clear([MAIL_MANAGE])
-        timeout = Timer(0.6, count=1)
-        has_mail = False
-        while 1:
-            if skip_first_screenshot:
-                skip_first_screenshot = False
-            else:
-                self.device.screenshot()
-
-            # End
-            if self.appear(MAIL_BATCH_CLAIM, offset=(20, 20)):
-                logger.info("Mail entered")
-                return True
-            if self.appear(MAIL_WHITE_EMPTY, offset=(20, 20)):
-                logger.info("Mail empty")
-                return False
-            if not has_mail and self.appear(GOTO_MAIN_WHITE, offset=(20, 20)):
-                timeout.start()
-                if timeout.reached():
-                    logger.info("Mail empty, wait GOTO_MAIN_WHITE timeout")
-                    return False
-
-            # Click
-            if self.appear_then_click(MAIL_MANAGE, offset=(30, 30), interval=3):
-                has_mail = True
-                continue
-            if self.ui_main_appear_then_click(page_mail, offset=(30, 30), interval=3):
-                continue
-            if self._handle_mail_reward():
-                continue
+        self._mail_enter_timeout = None
+        return bool(
+            run_flow(
+                _mail_enter_flow(), owner=self, skip_first=skip_first_screenshot,
+                params={"_mail_enter_result": False, "_mail_has_mail": False},
+            )
+        )
 
     def _mail_quit(self, skip_first_screenshot=True):
         """
@@ -81,6 +232,8 @@ class MailWhite(UI):
             in: Any page in page_mail
             out: page_main_white
         """
+        from module.flow.runtime import run_flow
+
         logger.info("Mail quit")
         self.interval_clear(
             [
@@ -91,28 +244,7 @@ class MailWhite(UI):
             ]
         )
         self.popup_interval_clear()
-        while 1:
-            if skip_first_screenshot:
-                skip_first_screenshot = False
-            else:
-                self.device.screenshot()
-
-            # End
-            if self.ui_page_appear(page_main):
-                logger.info("Mail quit to page_main")
-                break
-
-            # Click
-            if self.handle_popup_confirm("MAIL_QUIT"):
-                continue
-            if self.appear(MAIL_BATCH_CLAIM, offset=(30, 30), interval=3):
-                logger.info(f"{MAIL_BATCH_CLAIM} -> {MAIL_MANAGE}")
-                self.device.click(MAIL_MANAGE)
-                continue
-            if self.appear_then_click(GOTO_MAIN_WHITE, offset=(30, 30), interval=3):
-                continue
-            if self._handle_mail_reward():
-                continue
+        run_flow(_mail_quit_flow(), owner=self, skip_first=skip_first_screenshot)
 
     def _handle_mail_reward(self):
         if self.appear(GET_ITEMS_1, offset=(30, 30), interval=3):
@@ -134,6 +266,8 @@ class MailWhite(UI):
         Returns:
             int: If success to claim
         """
+        from module.flow.runtime import run_flow
+
         self.handle_info_bar()
         self.interval_clear(
             [
@@ -144,25 +278,9 @@ class MailWhite(UI):
         )
         self.popup_interval_clear()
 
-        claimed = False
-        while 1:
-            if skip_first_screenshot:
-                skip_first_screenshot = False
-            else:
-                self.device.screenshot()
-
-            # End
-            if claimed and self.appear(MAIL_BATCH_CLAIM, offset=(30, 30)):
-                break
-            # Click
-            if not claimed and self.appear_then_click(MAIL_BATCH_CLAIM, offset=(30, 30), interval=3):
-                continue
-            if self.handle_popup_confirm("MAIL_CLAIM"):
-                claimed = True
-                continue
-            if self._handle_mail_reward():
-                claimed = True
-                continue
+        run_flow(
+            _mail_claim_flow(), owner=self, skip_first=skip_first_screenshot, params={"_mail_claimed": False}
+        )
 
         success = self.info_bar_count() > 0
         logger.info(f"Mail claim success: {success}")
@@ -174,28 +292,15 @@ class MailWhite(UI):
             in: MAIL_BATCH_DELETE
             out: MAIL_BATCH_DELETE
         """
+        from module.flow.runtime import run_flow
+
         self.handle_info_bar()
         self.interval_clear([MAIL_BATCH_DELETE])
         self.popup_interval_clear()
 
-        deleted = False
-        while 1:
-            if skip_first_screenshot:
-                skip_first_screenshot = False
-            else:
-                self.device.screenshot()
-
-            # End
-            if deleted and self.appear(MAIL_BATCH_DELETE, offset=(30, 30)):
-                break
-            # Click
-            if not deleted and self.appear_then_click(MAIL_BATCH_DELETE, offset=(30, 30), interval=3):
-                continue
-            if self.handle_popup_confirm("MAIL_CLAIM"):
-                deleted = True
-                continue
-            if self._handle_mail_reward():
-                continue
+        run_flow(
+            _mail_delete_flow(), owner=self, skip_first=skip_first_screenshot, params={"_mail_deleted": False}
+        )
 
         # info_bar appears if mail success to delete and no mail deleted
         return True

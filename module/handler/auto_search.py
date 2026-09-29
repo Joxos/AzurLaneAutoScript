@@ -27,6 +27,54 @@ dic_setting_name_to_index = {
 dic_setting_index_to_name = {v: k for k, v in dic_setting_name_to_index.items()}
 
 
+# ---------------------------------------------------------------------------
+# auto-search setting ensure as a flow (design §3.4-G; replaces the old
+# `while 1 + counter` loop transcribed from L142-168).
+# ---------------------------------------------------------------------------
+
+
+def _as_setting_is_active(ctx, args=None, **kw):
+    """Pure detection (no click); setting -> target index in the active list."""
+    setting = (args or {}).get("setting")
+    if setting is None or setting not in dic_setting_name_to_index:
+        return False
+    return dic_setting_name_to_index[setting] in ctx.owner._auto_search_active_settings()
+
+
+def _as_setting_click(ctx, args=None, **kw):
+    """call_if helper: detect+click with backoff (original loop body)."""
+    setting = (args or {}).get("setting")
+    if setting is None or setting not in dic_setting_name_to_index:
+        return False
+    result = ctx.owner._auto_search_set_click(setting)
+    if not result:
+        ctx.owner.device.sleep((0.3, 0.5))
+    return result
+
+
+def make_auto_search_setting_ensure(setting: str):
+    return {
+        "name": "auto_search_setting_ensure",
+        "entry": "try",
+        "states": {
+            "try": {
+                "exit": {
+                    "check": {"custom": _as_setting_is_active, "args": {"setting": setting}},
+                    "on_success": {"exit": True},
+                },
+                "rules": [
+                    # T3: the click helper detects + clicks in one call (original
+                    # `_auto_search_set_click`); `call_if` keeps that semantics and
+                    # attempts count each execution (original counter >= 5).
+                    {"action": {"call_if": _as_setting_click, "args": {"setting": setting}},
+                     "attempts": {"limit": 5, "on_exceed": {"exit": False}}},
+                ],
+                "on_timeout": {"seconds": 20, "mode": "warn"},
+            },
+        },
+    }
+
+
 class AutoSearchHandler(EnemySearchingHandler):
     @Config.when(SERVER="en")
     def _fleet_sidebar(self):
@@ -108,14 +156,8 @@ class AutoSearchHandler(EnemySearchingHandler):
             logger.warning("Sidebar could not be ensured")
             return False
 
-    def _auto_search_set_click(self, setting):
-        """
-        Args:
-            setting (str):
-
-        Returns:
-            bool: If selected to the correct option.
-        """
+    def _auto_search_active_settings(self) -> list[int]:
+        """Indexes of currently active auto-search settings (pure detection)."""
         active = []
 
         for index, button in enumerate(AUTO_SEARCH_SETTINGS):
@@ -124,6 +166,19 @@ class AutoSearchHandler(EnemySearchingHandler):
 
         if not active:
             logger.warning("No active auto search setting found")
+        return active
+
+    def _auto_search_set_click(self, setting):
+        """
+        Args:
+            setting (str):
+
+        Returns:
+            bool: If selected to the correct option.
+        """
+        active = self._auto_search_active_settings()
+
+        if not active:
             return False
 
         logger.attr("Auto_Search_Setting", ", ".join([dic_setting_index_to_name[index] for index in active]))
@@ -146,26 +201,20 @@ class AutoSearchHandler(EnemySearchingHandler):
                 fleet1_mob_fleet2_boss, fleet1_boss_fleet2_mob, fleet1_all_fleet2_standby, fleet1_standby_fleet2_all, sub_auto_call, sub_standby
             skip_first_screenshot (bool):
 
-            Returns:
-                bool: whether sidebar could be ensured
-                      at most 3 attempts are made before
-                      return False otherwise True
+        Returns:
+            bool: whether the setting could be ensured (5 attempts before False)
         """
-        counter = 0
-        while 1:
-            if skip_first_screenshot:
-                skip_first_screenshot = False
-            else:
-                self.device.screenshot()
-            if self._auto_search_set_click(setting):
-                return True
-            else:
-                if counter >= 5:
-                    logger.warning("Auto search setting could not be ensured")
-                    return False
-                counter += 1
-                self.device.sleep((0.3, 0.5))
-                continue
+        from module.flow.runtime import run_flow
+
+        return bool(
+            run_flow(
+                make_auto_search_setting_ensure(setting)
+            )
+        )
+
+    def ensure_auto_search_setting_flow(self, setting: str) -> bool:
+        # Kept as an explicit alias for migration/tests only.
+        return self.auto_search_setting_ensure(setting, skip_first_screenshot=True)
 
     _auto_search_offset = (5, 5)
     # Move 213px left when MULTIPLE_SORTIE appears

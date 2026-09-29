@@ -16,6 +16,12 @@ Entry fields:
                             callable taking the config to build them
     function (str):         alternative to class+method: a module-level
                             function to call with config/device kwargs
+    task_flow (str):        alternative to class+method: module-level factory
+                            (zero-arg) returning a TaskSpec (steps data). The
+                            task class is still instantiated as the flow's
+                            owner; the scheduler runs it on the session
+                            FlowEngine (engine.run_task) instead of calling
+                            the method directly.
     task_arg (bool):        pass the scheduler task name as task=... kwarg
                             (used by daemon/eventstory/planner tasks)
     family (str|None):      task family tag (Phase 4D). Canonical families:
@@ -46,6 +52,7 @@ class TaskEntry:
     kwargs: t.Callable[[AzurLaneConfig], dict] | dict | None = None
     method_kwargs: t.Callable[[AzurLaneConfig], dict] | dict | None = None
     function: str | None = None
+    task_flow: str | None = None
     task_arg: bool = False
     family: str | None = None
 
@@ -78,7 +85,9 @@ TASK_REGISTRY: dict[str, TaskEntry] = {
     "EventShop": TaskEntry("module.shop_event.shop_event", "EventShop"),
     "Shipyard": TaskEntry("module.shipyard.shipyard_reward", "RewardShipyard"),
     "Gacha": TaskEntry("module.gacha.gacha_reward", "RewardGacha"),
-    "Freebies": TaskEntry("module.freebies.freebies", "Freebies"),
+    "Freebies": TaskEntry(
+        "module.freebies.freebies", "Freebies", task_flow="make_freebies_task"
+    ),
     "Minigame": TaskEntry("module.minigame.minigame", "Minigame"),
     "PrivateQuarters": TaskEntry("module.private_quarters.private_quarters", "PrivateQuarters"),
     "Daily": TaskEntry("module.daily.daily", "Daily"),

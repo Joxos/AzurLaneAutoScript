@@ -1,4 +1,5 @@
 import copy
+from typing import Any
 
 from module.base.base import ModuleBase
 from module.base.button import Button, ButtonGrid
@@ -7,9 +8,61 @@ from module.config.utils import dict_to_kv
 from module.exception import ScriptError
 from module.logger import logger
 
+# ---------------------------------------------------------------------------
+# Setting drive flow (B2b): `_set_execute` loop as flow data.
+# ---------------------------------------------------------------------------
+
+
+def _setting_done(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    setting = (args or {}).get("setting")
+    kwargs = (args or {}).get("kwargs")
+    setting.show_active_buttons()
+    clicks = setting.get_buttons_to_click(setting._product_setting_status(**kwargs))
+    if clicks:
+        ctx.params["_setting_clicks"] = clicks
+        return False
+    return True
+
+
+def _setting_click_ready(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    if not ctx.params.get("_setting_clicks"):
+        return False
+    retry = ctx.params.get("_setting_retry")
+    if retry is None:
+        retry = Timer(1, count=2)
+        ctx.params["_setting_retry"] = retry
+    return retry.reached()
+
+
+def _setting_click(ctx: Any, args: dict[str, Any] | None = None, **kw: Any) -> bool:
+    retry = ctx.params["_setting_retry"]
+    for button in ctx.params["_setting_clicks"]:
+        ctx.owner.device.click(button)
+    retry.reset()
+    return True
+
+
+def _setting_flow(setting: "Setting", kwargs: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "name": "setting_set",
+        "entry": "s",
+        "states": {
+            "s": {
+                "exit": {"check": {"custom": _setting_done, "args": {"setting": setting, "kwargs": kwargs}},
+                         "on_success": {"exit": True}},
+                "rules": [
+                    {"name": "click",
+                     "check": {"custom": _setting_click_ready, "args": {"setting": setting}},
+                     "action": {"call": _setting_click, "args": {"setting": setting}}},
+                ],
+                "on_timeout": {"seconds": 10, "count": 20, "mode": "exit", "value": False},
+            },
+        },
+    }
+
 
 class Setting:
-    def __init__(self, name='Setting', main: ModuleBase = None):
+    def __init__(self, name="Setting", main: ModuleBase = None):
         self.name = name
         # Alas module object
         self.main: ModuleBase = main
@@ -46,18 +99,20 @@ class Setting:
         if isinstance(option_buttons, ButtonGrid):
             option_buttons = option_buttons.buttons
         for option, option_name in zip(option_buttons, option_names):
-            if option_name == 'not_available':
+            if option_name == "not_available":
                 continue
             self.settings[(setting, option_name)] = option
 
         if option_default not in option_names:
-            raise ScriptError(f'Define option_default="{option_default}", '
-                              f'but default is not in option_names={option_names}')
+            raise ScriptError(
+                f'Define option_default="{option_default}", but default is not in option_names={option_names}'
+            )
         self.settings_default[setting] = option_default
 
     def is_option_active(self, option: Button) -> bool:
-        return self.main.image_color_count(option, color=(181, 142, 90), threshold=20, count=250) \
-               or self.main.image_color_count(option, color=(74, 117, 189), threshold=20, count=250)
+        return self.main.image_color_count(
+            option, color=(181, 142, 90), threshold=20, count=250
+        ) or self.main.image_color_count(option, color=(74, 117, 189), threshold=20, count=250)
 
     def _product_setting_status(self, **kwargs) -> dict[Button, bool]:
         """
@@ -94,9 +149,9 @@ class Setting:
         for key, option_button in self.settings.items():
             setting, option_name = key
             if self.is_option_active(option_button):
-                active.append(f'{setting}/{option_name}')
+                active.append(f"{setting}/{option_name}")
 
-        logger.attr(self.name, ', '.join(active))
+        logger.attr(self.name, ", ".join(active))
 
     def get_buttons_to_click(self, status: dict[Button, bool]) -> list[Button]:
         """
@@ -126,31 +181,12 @@ class Setting:
         Returns:
             bool: If success the set
         """
-        status = self._product_setting_status(**kwargs)
+        from module.flow.runtime import run_flow
 
-        logger.info(f'Setting options {self.name}, {dict_to_kv(kwargs)}')
-        skip_first_screenshot = True
-        retry = Timer(1, count=2)
-        timeout = Timer(10, count=20).start()
-        while 1:
-            if skip_first_screenshot:
-                skip_first_screenshot = False
-            else:
-                self.main.device.screenshot()
-
-            if timeout.reached():
-                logger.warning(f'Set {self.name} options timeout, assuming current options are correct.')
-                return False
-
-            self.show_active_buttons()
-            clicks = self.get_buttons_to_click(status)
-            if clicks:
-                if retry.reached():
-                    for button in clicks:
-                        self.main.device.click(button)
-                    retry.reset()
-            else:
-                return True
+        logger.info(f"Setting options {self.name}, {dict_to_kv(kwargs)}")
+        return bool(
+            run_flow(_setting_flow(self, kwargs), owner=self.main)
+        )
 
     def set(self, **kwargs):
         """
