@@ -6,9 +6,9 @@ from yaml import safe_load
 
 import module.config.server as server
 from module.base.button import ButtonGrid
-from module.base.decorator import cached_property, del_cached_property
+from module.base.decorator import cached_property
 from module.base.timer import Timer
-from module.base.utils import color_similar, color_similarity_2d, load_image
+from module.base.utils import color_similar, color_similarity_2d
 from module.config.utils import get_server_next_update
 from module.island.assets import ISLAND_CLICK_SAFE_AREA
 from module.island.data import DIC_ISLAND_ITEM, DIC_ISLAND_RESTAURANT_MENU_TO_RECIPE
@@ -19,9 +19,8 @@ from module.island.utils import (
     merge_task_target_stuck_order_items,
     normalize_item_keys,
 )
-from module.island_handler.assets import *
+from module.island_handler.assets import *  # noqa: F403  (data-bundle star import)
 from module.island_handler.dock import IslandDock
-from module.island_handler.dock_scanner import CharacterScanner
 from module.island_handler.restaurant_config import (
     RESTAURANT_IDS,
     WAITRESS_ANY,
@@ -30,14 +29,11 @@ from module.island_handler.restaurant_config import (
     get_restaurant_capacity,
     get_restaurant_config,
     get_selected_named_waitresses,
-    get_waitress_effect,
     get_waitress_slots,
 )
 from module.logger import logger
 from module.ocr.ocr import Digit
 from module.statistics.item import Item, ItemGrid
-from module.statistics.utils import load_folder
-
 
 RESTAURANT_SWIPE_AREA = (583, 208, 1023, 400)
 ISLAND_RESTAURANT_ITEM_ORDER_PRICE = {
@@ -46,7 +42,7 @@ ISLAND_RESTAURANT_ITEM_ORDER_PRICE = {
         'order_price': DIC_ISLAND_ITEM[item_id]['order_price'],
     }
     for menu in DIC_ISLAND_RESTAURANT_MENU_TO_RECIPE.values()
-    for item_id in menu.keys()
+    for item_id in menu
 }
 
 
@@ -239,7 +235,7 @@ class IslandRestaurant(IslandDock):
             return 0
         ocr = Digit(ISLAND_RESTAURANT_EVENT_BUFF, lang='cnocr', letter=(67, 71, 23), threshold=160, alphabet='0123IDB')
         result = ocr.ocr(self.device.image)
-        if not result in [10, 20, 30]:
+        if result not in [10, 20, 30]:
             logger.warning(f'Unexpected event buff OCR result: {result}, default to 10')
             result = 10
         return result

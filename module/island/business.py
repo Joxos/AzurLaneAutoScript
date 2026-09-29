@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from module.base.button import ButtonGrid
 from module.base.decorator import cached_property, del_cached_property
 from module.config.utils import get_server_next_update
-from module.island.assets import *
+from module.island.assets import *  # noqa: F403  (data-bundle star import)
 from module.island_handler.restaurant import IslandRestaurant, WaitressOccupied
 from module.island_handler.restaurant_config import (
     RESTAURANT_IDS,
@@ -13,7 +13,6 @@ from module.island_handler.restaurant_config import (
 from module.logger import logger
 from module.ocr.ocr import Duration
 from module.ui.page import page_island_manage
-
 
 BUSINESS_DETECT_AREA = (210, 72, 1203, 685)
 BUSINESS_ENTRANCE_AREA = (794, 84, 950, 120)

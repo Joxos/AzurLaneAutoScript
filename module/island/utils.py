@@ -1,6 +1,5 @@
 import re
 from collections import defaultdict
-from typing import Dict
 
 import numpy as np
 from yaml import safe_dump, safe_load
@@ -361,7 +360,7 @@ def ceil_div_or_ceil(numerator, denominator):
 
 def ceil_with_epsilon(amount, epsilon=1e-9):
     from math import ceil
-    return int(ceil(float(amount) - epsilon))
+    return ceil(float(amount) - epsilon)
 
 
 def format_item_need_data(data, format_amount):
@@ -394,9 +393,9 @@ def item_need_data_to_yaml_entry(data, round_up_int):
     }
 
 
-def get_sub_dict(raw_dict: Dict[int, bool], keys: list) -> Dict[int, bool]:
+def get_sub_dict(raw_dict: dict[int, bool], keys: list) -> dict[int, bool]:
     return {key: raw_dict.get(key, False) for key in keys}
 
 
-def count_level(substatus: Dict[int, bool]):
+def count_level(substatus: dict[int, bool]):
     return sum(1 for status in substatus.values() if status)

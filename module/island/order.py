@@ -1,16 +1,16 @@
 from datetime import datetime, timedelta
 
 import cv2
-from jellyfish import levenshtein_distance
 import numpy as np
+from jellyfish import levenshtein_distance
 
 import module.config.server as server
 from module.base.button import Button, ButtonGrid
-from module.config.utils import get_server_next_update
 from module.base.decorator import cached_property
 from module.base.timer import Timer
 from module.base.utils import color_similarity_2d
-from module.island.assets import *
+from module.config.utils import get_server_next_update
+from module.island.assets import *  # noqa: F403  (data-bundle star import)
 from module.island.data import DIC_ISLAND_ITEM, DIC_ISLAND_SEASON_ORDER
 from module.island.ui import IslandUI
 from module.island.utils import (
@@ -18,13 +18,11 @@ from module.island.utils import (
     load_hard_floor_items,
     normalize_item_keys,
 )
-from module.island_handler.restaurant_config import get_menu_reserve_items
 from module.island_handler.recipe import IslandReversedDigitCounter
+from module.island_handler.restaurant_config import get_menu_reserve_items
 from module.logger import logger
-from module.map_detection.utils import Points
 from module.ocr.ocr import Duration, Ocr
 from module.ui.page import page_island_order
-
 
 COLOR_REGULAR = (57, 189, 255)  # Blue
 COLOR_REGULAR_COOLDOWN = (173, 227, 255)  # Light Blue
@@ -77,7 +75,7 @@ class IslandOrder(IslandUI):
         outer_radius = 52
         circles = get_circles(self.device.image, color, inner_radius, outer_radius)
         button_list = []
-        for index, circle in enumerate(circles):
+        for _index, circle in enumerate(circles):
             x, y, _ = circle
             x = int(x)
             y = int(y)
@@ -123,8 +121,8 @@ class IslandOrder(IslandUI):
 
     @cached_property
     def requirement_counter_ocr(self):
-        return IslandReversedDigitCounter(self.requirement_counter_grid.buttons, lang='cnocr', 
-                                          letter=(57, 59, 61), sub_letter=(253, 97, 96), 
+        return IslandReversedDigitCounter(self.requirement_counter_grid.buttons, lang='cnocr',
+                                          letter=(57, 59, 61), sub_letter=(253, 97, 96),
                                           threshold=160, sub_threshold=160, background_color=None,
                                           name='REQUIREMENTS_COUNTER_OCR')
 

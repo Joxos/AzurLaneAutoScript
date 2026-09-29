@@ -1,11 +1,11 @@
 from jellyfish import levenshtein_distance
 
-from module.base.timer import Timer
-from module.combat.assets import GET_ITEMS_1
 import module.config.server as server
 from module.base.button import ButtonGrid
 from module.base.decorator import cached_property, del_cached_property
-from module.island.assets import *
+from module.base.timer import Timer
+from module.combat.assets import GET_ITEMS_1
+from module.island.assets import *  # noqa: F403  (data-bundle star import)
 from module.island.data import DIC_ISLAND_TASK
 from module.island.ui import IslandUI
 from module.island.utils import item_mapping_to_yaml, load_item_mapping, normalize_item_keys
@@ -15,7 +15,6 @@ from module.ocr.ocr import Ocr
 from module.ui.navbar import Navbar
 from module.ui.page import page_island_season
 from module.ui.scroll import Scroll
-
 
 DETECT_AREA = (42, 171, 1206, 604)
 ICON_AREA = (21, 133, 225, 195)
@@ -201,7 +200,7 @@ class IslandSeasonTask(IslandUI):
                     if task_id not in unfinished_tasks:
                         unfinished_tasks.append(task_id)
             if early_stop:
-                logger.info(f'Detect obtained task, early stop scanning')
+                logger.info('Detect obtained task, early stop scanning')
                 break
             if ISLAND_SEASON_TASK_SCROLL.at_bottom(main=self):
                 break
@@ -228,7 +227,7 @@ class IslandSeasonTask(IslandUI):
         for task_id in unfinished_tasks:
             target = DIC_ISLAND_TASK[task_id]['target']
             if target:
-                item_id = list(target.keys())[0]
+                item_id = next(iter(target.keys()))
                 new_target[item_id] = new_target.get(item_id, 0) + target[item_id]
         new_target = normalize_item_keys(new_target)
         if new_target != old_target:

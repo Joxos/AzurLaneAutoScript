@@ -154,7 +154,7 @@ class Enhancement(Dock):
         if cv is None:
             return
 
-        logger.info(f'Enhance de-select common CV')
+        logger.info('Enhance de-select common CV')
         # get cv slot, outer pad from matched center
         area = cv.area
         center = ((area[0] + area[2]) / 2, (area[1] + area[3]) / 2)
@@ -169,7 +169,7 @@ class Enhancement(Dock):
             result = cv2.matchTemplate(EMPTY_ENHANCE_SLOT_PLUS.image, image, cv2.TM_CCOEFF_NORMED)
             _, similarity, _, _ = cv2.minMaxLoc(result)
             if similarity > 0.85:
-                logger.info(f'Enhance de-select common CV done')
+                logger.info('Enhance de-select common CV done')
                 break
 
             if self.appear(ENHANCE_RECOMMEND, offset=(5, 5), interval=2):

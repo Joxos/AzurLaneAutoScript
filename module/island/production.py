@@ -2,18 +2,15 @@ from datetime import datetime
 
 from module.base.button import ButtonGrid
 from module.base.decorator import cached_property, del_cached_property, has_cached_property
-from module.base.timer import Timer
 from module.base.utils import random_rectangle_vector_opted
 from module.exception import RequestHumanTakeover
-from module.island.assets import *
+from module.island.assets import *  # noqa: F403  (data-bundle star import)
 from module.island.data import DIC_ISLAND_PRODUCTION_PLACE
 from module.island_handler.dock import IslandDock
-from module.island_handler.dock_scanner import CharacterScanner
 from module.island_handler.recipe import IslandProductionRestart, IslandRecipe
 from module.logger import logger
 from module.map_detection.utils import Points
-from module.ui.page import page_island, page_island_manage
-
+from module.ui.page import page_island_manage
 
 ANCHOR_AREA = (452, 7, 481, 36)
 DETECT_AREA = (192, 69, 1221, 653)
@@ -59,7 +56,7 @@ class IslandProduction(IslandRecipe, IslandDock):
             origin_y = min(y1, y2) + DETECT_AREA[1]
             delta_y = TAB_DELTA[1]
         else:
-            logger.warning(f'Unexpected production tab anchor match result: {[a for a in rows]}')
+            logger.warning(f'Unexpected production tab anchor match result: {list(rows)}')
             origin_y = 70
             delta_y = TAB_DELTA[1]
 
@@ -195,7 +192,7 @@ class IslandProduction(IslandRecipe, IslandDock):
             if self.match_template_color(page_island_manage.check_button) and not self.is_enter_window_shown() and not self.appear(ISLAND_PRODUCTION_SELECT_CHARACTER, offset=(60, 20)):
                 return True
 
-    def claim_reward_in_page(self, finished_slots=[]):
+    def claim_reward_in_page(self, finished_slots=[]):  # noqa: B006 (read-only default; changing it would alter the call sites)
         for place_id, slot_grid in self.slot_grids.items():
             for slot_id, slot_button in zip(DIC_ISLAND_PRODUCTION_PLACE[place_id]['slot'], slot_grid.buttons):
                 if self.is_slot_finished(slot_button) or self.slot_finish_time.get(slot_id, datetime.max) <= datetime.now():
@@ -276,7 +273,7 @@ class IslandProduction(IslandRecipe, IslandDock):
         dispatched_places = set()
         while 1:
             try:
-                for place_id in self.slot_grids.keys():
+                for place_id in self.slot_grids:
                     if place_id not in dispatched_places:
                         self.dispatch_place(place_id)
                         dispatched_places.add(place_id)

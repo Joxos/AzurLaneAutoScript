@@ -1,7 +1,5 @@
-import re
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from dev_tools.slpp import slpp
 from dev_tools.utils import LuaLoader
 
 
@@ -323,13 +321,13 @@ class IslandActivityExtractor:
     def __init__(self):
         self.activity = {}
         data = LOADER.load('sharecfg/island_activity_template.lua')
-        for index, item in data.items():
+        for index, _item in data.items():
             if not isinstance(index, int) or index < 990000:
                 continue
             self.activity[index] = None
         data = LOADER.load('sharecfg/activity_template.lua')
         for index, item in data.items():
-            if not isinstance(index, int) or not index in self.activity:
+            if not isinstance(index, int) or index not in self.activity:
                 continue
             self.activity[index] = Activity(item).encode()
         for index, item in self.extract_item_name('zh-CN').items():
@@ -370,11 +368,11 @@ class IslandActivityExtractor:
         data = LOADER.load('sharecfg/activity_template.lua')
         out = {}
         for index, item in data.items():
-            if not isinstance(index, int) or not index in self.activity:
+            if not isinstance(index, int) or index not in self.activity:
                 continue
             out[item['id']] = item
         return out
-    
+
     def encode(self):
         lines = []
         lines.append('DIC_ISLAND_ACTIVITY = {')
@@ -382,7 +380,7 @@ class IslandActivityExtractor:
             lines.append(f'    {index}: {activity},')
         lines.append('}')
         return lines
-    
+
     def write(self, file):
         print(f'writing {file}')
         with open(file, 'w', encoding='utf-8') as f:
@@ -425,7 +423,7 @@ class IslandWildGatherExtractor:
             lines.append(f'    {index}: {gather},')
         lines.append('}')
         return lines
-        
+
 
 
 class IslandProductionMiningExtractor:
@@ -433,7 +431,7 @@ class IslandProductionMiningExtractor:
         self.mining = {}
         for index in range(40101, 40110):
             self.mining[index] = {2700: 8}
-    
+
     def encode(self):
         lines = []
         lines.append('DIC_ISLAND_PRODUCTION_MINING = {')
@@ -448,7 +446,7 @@ class IslandProductionLoggingExtractor:
         self.logging = {}
         for index in range(40201, 40210):
             self.logging[index] = {2800: 8}
-    
+
     def encode(self):
         lines = []
         lines.append('DIC_ISLAND_PRODUCTION_LOGGING = {')
@@ -495,7 +493,7 @@ class IslandSeasonExtractor:
         if activity_dict is None:
             print('activity_dict is None, skipping season-activity matching')
             return
-        for index, season in self.season.items():
+        for _index, season in self.season.items():
             for activity_id, activity in activity_dict.items():
                 if season['start_time']['cn'] is not None and season['end_time']['cn'] is not None and activity['start_time']['cn'] is not None and activity['end_time']['cn'] is not None:
                     if (dates_within_24_hours(season['start_time']['cn'], activity['start_time']['cn']) and
@@ -519,7 +517,7 @@ class IslandSeasonExtractor:
             lines.append(f'    {index}: {season},')
         lines.append('}')
         return lines
-    
+
 
 class IslandTaskExtractor:
     def __init__(self):
@@ -600,10 +598,10 @@ class IslandTaskExtractor:
             else:
                 self.task[index]['start_time']['tw'] = island_time_to_sql_time(time_dict[0])
                 self.task[index]['end_time']['tw'] = island_time_to_sql_time(time_dict[1])
-        
+
         data = LOADER.load('sharecfg/island_task_target.lua')
         for index, item in data.items():
-            if not isinstance(index, int) or not item['id'] in target_id_to_task_id:
+            if not isinstance(index, int) or item['id'] not in target_id_to_task_id:
                 continue
             task_id = target_id_to_task_id[item['id']]
             if isinstance(item['target_param'], dict):
@@ -614,12 +612,12 @@ class IslandTaskExtractor:
         data = LOADER.load('sharecfg/island_task.lua')
         out = {}
         for index, item in data.items():
-            if not isinstance(index, int) or not item['id'] in self.task.keys():
+            if not isinstance(index, int) or item['id'] not in self.task:
                 continue
             out[item['id']] = item
 
         return out
-    
+
     def encode(self):
         lines = []
         lines.append('DIC_ISLAND_TASK = {')
@@ -646,7 +644,7 @@ class IslandSeasonRequest:
             'award': self.award,
         }
         return data
-    
+
 
 class IslandSeasonRequestExtractor:
     def __init__(self):
@@ -771,7 +769,7 @@ class IslandShopItemExtractor:
             }
             for _, itm in item['items'].items():
                 self.item_to_recipe_id[itm[1]] = index
-        
+
         for index, item in self.extract_item('zh-CN').items():
             self.item[index]['name']['cn'] = item['goods_name']
             time_dict = item['time']

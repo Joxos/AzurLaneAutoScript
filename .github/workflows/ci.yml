@@ -34,12 +34,12 @@ jobs:
         working-directory: webapp
         run: pnpm install --frozen-lockfile
 
-      # The lint/type gates are scoped to the directories that are currently
-      # clean; widen them as the legacy codebase goes green (module/config,
-      # module/core and friends still carry pre-existing findings - the cv2
-      # stubs reject scalar/tuple image ops all over module/core).
-      - name: Lint (scoped)
-        run: uv run ruff check module/alas.py module/logger.py module/scheduler module/tasks module/core module/base module/device module/map_detection tests dev_tools/verify_alas_structure.py
+      # The whole tree is clean as of 2026-09-29 (the island/island_handler
+      # modules adopted from upstream were the last holdouts). If this ever
+      # fails, fix the code or annotate the site with a reason - do not widen
+      # the scope again.
+      - name: Lint
+        run: uv run ruff check .
 
       - name: Type check (scoped)
         run: uv run pyright module/logger.py module/scheduler module/tasks tests

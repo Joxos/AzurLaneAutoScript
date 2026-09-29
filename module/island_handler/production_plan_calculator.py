@@ -6,13 +6,12 @@ is stored as a plain attribute on ProductionPlanCalculator.
 """
 from collections import defaultdict
 from datetime import datetime
-from typing import Dict
 
 import numpy as np
 from scipy.optimize import linprog
 
 import module.config.server as server
-from module.island.data import *
+from module.island.data import *  # noqa: F403  (data-bundle star import)
 from module.island.utils import (
     ceil_with_epsilon,
     count_level,
@@ -45,7 +44,7 @@ def get_current_activity_list(time):
         list[int]: Activity ids of the island season covering `time`,
             or None if no season covers it.
     """
-    for season, content in DIC_ISLAND_SEASON.items():
+    for _season, content in DIC_ISLAND_SEASON.items():
         start_time = datetime.strptime(content['start_time'][server.server], "%Y-%m-%d %H:%M:%S")
         end_time = datetime.strptime(content['end_time'][server.server], "%Y-%m-%d %H:%M:%S")
         if start_time <= time < end_time:
@@ -126,7 +125,7 @@ class ProductionPlanCalculator:
     }
     def __init__(
             self,
-            technology_status: Dict[int, bool],
+            technology_status: dict[int, bool],
             activity_list=None,
             place_efficiency=None,
             restaurant_settings=None,
@@ -173,7 +172,7 @@ class ProductionPlanCalculator:
         self.analyze_technology_status(technology_status)
         self._reset_lp_result()
 
-    def analyze_technology_status(self, technology_status: Dict[int, bool]):
+    def analyze_technology_status(self, technology_status: dict[int, bool]):
         self.recipe_available = {}
         self.wild_gather_available = {}
         for activity_id in self.activity_list:
@@ -378,7 +377,7 @@ class ProductionPlanCalculator:
             5: technology_status.get(450301, False),
             6: technology_status.get(450302, False),
         })
-        for id, item in DIC_ISLAND_WILD_GATHER.items():
+        for id, _item in DIC_ISLAND_WILD_GATHER.items():
             if id < 10:
                 self.wild_gather_available.setdefault(id, True)
             else:
@@ -763,7 +762,7 @@ class ProductionPlanCalculator:
                 a_ub.append(row)
                 b_ub.append(capacity)
 
-        for slot, menu in sell_slots.items():
+        for slot, _menu in sell_slots.items():
             slot_sales = [idx for idx, entry in enumerate(sale_entries) if entry[0] == slot]
             if slot_sales:
                 row = np.zeros(total_vars)
@@ -920,7 +919,7 @@ class ProductionPlanCalculator:
                 if item_id in self.RECIPE_PRODUCT_IDS or item_id in self.EXCHANGE_PRODUCT_IDS:
                     daily_product_demand[item_id] += input_amount * amount
 
-        for idx, (slot, item_id) in enumerate(sale_entries, start=activity_count):
+        for idx, (_slot, item_id) in enumerate(sale_entries, start=activity_count):
             amount = solution[idx]
             if amount <= self.NET_ACCUMULATING_EPSILON:
                 continue

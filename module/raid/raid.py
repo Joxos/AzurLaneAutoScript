@@ -73,7 +73,7 @@ class BigshotPtOcr(Digit):
         mask = color_similarity_2d(image, (240, 252, 233))
         cv2.inRange(mask, 180, 255, dst=mask)
         # flood-fill upper-left and bottom-left to 128
-        width, height = image_size(image)
+        _width, height = image_size(image)
         fill_color = 128
         if mask[0, 0] == 255:
             cv2.floodFill(mask, mask=None, seedPoint=(0, 0), newVal=fill_color, flags=8)

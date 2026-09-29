@@ -10,7 +10,6 @@ from collections import OrderedDict
 from module.exception import RequestHumanTakeover
 from module.island.utils import ceil_with_epsilon, load_item_mapping, normalize_item_keys
 
-
 WAITRESS_NONE = 'none'
 WAITRESS_ANY = 'any'
 
@@ -97,7 +96,9 @@ def get_config_key(restaurant_id, key):
 
 
 def get_waitress_options(restaurant_id):
-    return (WAITRESS_NONE, WAITRESS_ANY) + tuple(
+    # Tuple concatenation, not unpacking: this is a fixed two-element prefix
+    # joined to generated data, and the concat form states that directly.
+    return (WAITRESS_NONE, WAITRESS_ANY) + tuple(  # noqa: RUF005
         get_restaurant_config(restaurant_id)['waitress_options']
     )
 

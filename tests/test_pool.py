@@ -131,26 +131,30 @@ def excepthook():
 
 
 @pytest.fixture
-def pool(monkeypatch):
+def pool_and_hangs(monkeypatch):
     """An isolated pool with a short idle timeout.
 
     `WorkerThread.__init__` reaches `WorkerPool.IDLE_TIMEOUT` through the module
     global, so patching the class attribute affects workers created afterwards.
+
+    Yields `(pool, hangs)`: the tests register their one-shot hang objects so
+    the teardown can release anything a failed test left blocked.
     """
     monkeypatch.setattr(WorkerPool, "IDLE_TIMEOUT", 0.5)
     instance = WorkerPool(pool_size=8)
-    instance.hangs = []
-    yield instance
+    hangs: list = []
+    yield instance, hangs
 
     # Never let a failing test leave a live daemon thread behind.
-    for hang in instance.hangs:
+    for hang in hangs:
         hang.release()
     for worker in list(instance.all_workers) + list(instance.idle_workers):
         worker.kill()
     _wait_until(lambda: not _alive_pool_threads(), timeout=5.0)
 
 
-def test_worker_exit_after_kill_does_not_raise(pool, excepthook):
+def test_worker_exit_after_kill_does_not_raise(pool_and_hangs, excepthook):
+    pool, _hangs = pool_and_hangs
     """`kill()` may remove a worker that is already inside its exit path.
 
     Interleaving behind the reported traceback, replayed deterministically:
@@ -213,7 +217,8 @@ def test_worker_exit_after_kill_does_not_raise(pool, excepthook):
     assert excepthook.crashes == [], f"worker thread crashed: {[a.exc_value for a in excepthook.crashes]}"
 
 
-def test_killed_worker_does_not_return_to_idle(pool, excepthook):
+def test_killed_worker_does_not_return_to_idle(pool_and_hangs, excepthook):
+    pool, hangs = pool_and_hangs
     """A worker killed while running a job must exit instead of idling again.
 
     Before the fix the victim re-registered itself in `idle_workers` while missing
@@ -221,7 +226,7 @@ def test_killed_worker_does_not_return_to_idle(pool, excepthook):
     produces this on every hung call, and it surfaces once the task queue drains.
     """
     hang = _OneShotHang()
-    pool.hangs.append(hang)
+    hangs.append(hang)
     job = pool.start_thread_soon(hang)
     with pytest.raises(JobTimeout):
         job.get_or_kill(timeout=0.2)

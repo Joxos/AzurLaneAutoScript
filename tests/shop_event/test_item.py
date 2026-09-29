@@ -15,7 +15,7 @@ class TestCounterOcrAfterProcess:
 
     ocr = CounterOcr([], name='Test_counter_ocr')
 
-    @pytest.mark.parametrize('raw, expected', [
+    @pytest.mark.parametrize(('raw', 'expected'), [
         # No revision needed
         ('14/15', '14/15'),
         ('0/1', '0/1'),
@@ -41,7 +41,7 @@ class TestCounterOcrAfterProcess:
         """Letters are revised to digits, then the counter fixup applies."""
         assert self.ocr.after_process(raw) == expected
 
-    @pytest.mark.parametrize('raw, expected', [
+    @pytest.mark.parametrize(('raw', 'expected'), [
         ('55', '5/5'),
         ('2530', '25/30'),
     ])
@@ -49,7 +49,7 @@ class TestCounterOcrAfterProcess:
         """Documented examples in the fixup comment."""
         assert self.ocr.after_process(raw) == expected
 
-    @pytest.mark.parametrize('raw, expected', [
+    @pytest.mark.parametrize(('raw', 'expected'), [
         # "0100" -> "0/100", ..., "100100" -> "100/100", and likewise for
         # every other total in the fixup list
         (f'{current}{total}', f'{current}/{total}')
@@ -60,7 +60,7 @@ class TestCounterOcrAfterProcess:
         """Every current in 0..total gets the slash inserted correctly."""
         assert self.ocr.after_process(raw) == expected
 
-    @pytest.mark.parametrize('raw, expected', [
+    @pytest.mark.parametrize(('raw', 'expected'), [
         # Edge case: OCR result is exactly the total, no slash is added
         ('100', '100'),
         ('50', '50'),
@@ -76,7 +76,7 @@ class TestCounterOcrAfterProcess:
     def test_fixup_exact_total_unchanged(self, raw, expected):
         assert self.ocr.after_process(raw) == expected
 
-    @pytest.mark.parametrize('raw, expected', [
+    @pytest.mark.parametrize(('raw', 'expected'), [
         # Pure digits that do not end with any total stay unchanged
         ('77', '77'),
         ('233', '233'),

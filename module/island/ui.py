@@ -1,6 +1,6 @@
+
 import cv2
 import numpy as np
-from typing import List
 
 from module.base.base import ModuleBase
 from module.base.button import ButtonGrid
@@ -8,7 +8,7 @@ from module.base.decorator import cached_property
 from module.base.timer import Timer
 from module.base.utils import area_offset, color_similarity_2d, rgb2luma
 from module.combat.assets import GET_ITEMS_1
-from module.island.assets import *
+from module.island.assets import *  # noqa: F403  (data-bundle star import)
 from module.logger import logger
 from module.ui.navbar import Navbar
 from module.ui.ui import UI
@@ -34,14 +34,14 @@ class NestedNavbar:
     # 5
     # Since the level 1 buttons will move, before clicking the level 1 button we will need to check the current acvive level 1 button and the number of active submenu options to calculate the position of the level 1 button to click.
     def __init__(self, grids: ButtonGrid,
-                 subgrid_delta: tuple = None, subgrid_button_shape: tuple = None,
-                 subgrid_shapes: List[tuple] = None, direction: str = 'vertical',
+                 subgrid_delta: tuple | None = None, subgrid_button_shape: tuple | None = None,
+                 subgrid_shapes: list[tuple] | None = None, direction: str = 'vertical',
                  main_active_color=(57, 189, 255), main_inactive_color=(38, 39, 40),
                  main_active_threshold=221, main_inactive_threshold=221,
                  main_active_count=2000, main_inactive_count=2000,
                  sub_active_color=(125, 126, 126), sub_inactive_color=(38, 39, 40),
                  sub_active_threshold=221, sub_inactive_threshold=221,
-                 sub_active_count=500, sub_inactive_count=500, name: str = None):
+                 sub_active_count=500, sub_inactive_count=500, name: str | None = None):
         """
         Parameters:
             grids (ButtonGrid): The ButtonGrid instance for the main level buttons.
@@ -174,7 +174,7 @@ class NestedNavbar:
 
         return active_main_index, active_sub_index, main_begin, main_end
 
-    def set(self, main: ModuleBase, main_index: int, sub_index: int = None, skip_first_screenshot: bool = False):
+    def set(self, main: ModuleBase, main_index: int, sub_index: int | None = None, skip_first_screenshot: bool = False):
         """
         Click the main button and submenu option based on the provided indices.
         Should be used after calling get_info to get the current active main and submenu indices to calculate the position to click.

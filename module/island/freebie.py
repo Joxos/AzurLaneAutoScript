@@ -1,8 +1,8 @@
 from module.base.timer import Timer
 from module.exception import GameStuckError
 from module.handler.assets import STORY_SKIP
+from module.island.assets import *  # noqa: F403  (data-bundle star import)
 from module.island.ui import IslandUI
-from module.island.assets import *
 from module.logger import logger
 from module.ui.page import page_island, page_island_manage, page_island_phone
 
@@ -39,7 +39,7 @@ class IslandFreebie(IslandUI):
                 break
         else:
             logger.warning('Failed to move to location of freebie after 30 seconds')
-            raise GameStuckError(f'Failed to move to location of freebie after 30 seconds')
+            raise GameStuckError('Failed to move to location of freebie after 30 seconds')
 
     def freebie_claim(self):
         if not self.appear(ISLAND_FREEBIE_CLAIM, offset=(20, 20)):

@@ -41,7 +41,10 @@ def iter_module_names():
         if top in EXCLUDED_TOP:
             continue
         if rel.name == "__init__.py":
-            name = "module." + ".".join(rel.parts[:-1])
+            # module/__init__.py is the package root itself (added with the
+            # `alas` console script); joining no parts would ask for the
+            # non-existent module "module.".
+            name = "module" if len(rel.parts) == 1 else "module." + ".".join(rel.parts[:-1])
         else:
             name = "module." + ".".join((*rel.parts[:-1], rel.stem))
         yield name

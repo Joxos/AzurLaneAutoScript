@@ -5,10 +5,10 @@ from yaml import safe_dump
 from module.base.button import ButtonGrid
 from module.base.decorator import cached_property
 from module.base.mask import Mask
-from module.base.utils import color_similarity_2d, rgb2luma, load_image, random_rectangle_vector, area_offset, crop
-from module.island_handler.assets import *
+from module.base.utils import area_offset, color_similarity_2d, crop, load_image, random_rectangle_vector, rgb2luma
 from module.island.data import DIC_ISLAND_TECHNOLOGY
 from module.island.ui import IslandUI
+from module.island_handler.assets import *  # noqa: F403  (data-bundle star import)
 from module.ui.navbar import Navbar
 from module.ui.page import page_island_technology
 
@@ -100,7 +100,7 @@ class IslandTechnologyScanner(IslandUI):
         globe_view = load_image(f'./assets/island/technology/technology_chart_{tab}.png')
         extracted_flowchart = extract_flowchart(self.device.image)
         result = cv2.matchTemplate(globe_view, extracted_flowchart, cv2.TM_CCOEFF_NORMED)
-        _, similarity, _, loca = cv2.minMaxLoc(result)
+        _, _similarity, _, loca = cv2.minMaxLoc(result)
         # print(similarity)
         return loca[0]
 
@@ -127,7 +127,7 @@ class IslandTechnologyScanner(IslandUI):
 
     def scan_all(self):
         all_technology = {}
-        for index in DIC_ISLAND_TECHNOLOGY.keys():
+        for index in DIC_ISLAND_TECHNOLOGY:
             if DIC_ISLAND_TECHNOLOGY[index]['tech_belong'] not in [2, 3, 4, 5, 6]:
                 continue
             tab, position = get_technology_tab_and_position(index)

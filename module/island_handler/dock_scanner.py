@@ -1,13 +1,13 @@
 import re
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any
 
 import cv2
 
 from module.base.button import Button, ButtonGrid
 from module.base.utils import color_similarity_2d, crop, limit_in, load_image
-from module.island_handler.assets import *
+from module.island_handler.assets import *  # noqa: F403  (data-bundle star import)
 from module.logger import logger
 from module.ocr.ocr import Ocr
 from module.statistics.utils import load_folder
@@ -76,17 +76,17 @@ class IslandEmotionCounterOcr(Ocr):
 
 
 class Scanner(metaclass=ABCMeta):
-    _results: List = None
+    _results: list = None
     _enabled: bool = True
-    _disabled_value: List[None] = [None] * 12
+    _disabled_value: list[None] = [None] * 12
     grids: ButtonGrid = None
 
     @property
-    def results(self) -> List:
+    def results(self) -> list:
         return self._results
 
     @abstractmethod
-    def _scan(self, image) -> List:
+    def _scan(self, image) -> list:
         pass
 
     @abstractmethod
@@ -99,7 +99,7 @@ class Scanner(metaclass=ABCMeta):
         """
         self._results.clear()
 
-    def scan(self, image, cached=False, output=False) -> Union[List, None]:
+    def scan(self, image, cached=False, output=False) -> list | None:
         """
         If scanner is enabled, return the real results.
         Otherwise, return a series of None.
@@ -107,7 +107,7 @@ class Scanner(metaclass=ABCMeta):
         For multi-scan, caching the results is recommended.
         If cached is set, results will be cached.
         """
-        results: List = self._scan(image) if self._enabled else self._disabled_value
+        results: list = self._scan(image) if self._enabled else self._disabled_value
 
         if output:
             for result in results:
@@ -149,12 +149,12 @@ class IdentityScanner(Scanner):
                 return name
         return 'unknown'
 
-    def _scan(self, image) -> List:
+    def _scan(self, image) -> list:
         image_list = [crop(image, button.area) for button in self.grids.buttons]
         return [self._match(image) for image in image_list]
 
     def limit_value(self, value) -> str:
-        return value if value in self.templates.keys() else 'any'
+        return value if value in self.templates else 'any'
 
 
 class EmotionCounterScanner(Scanner):
@@ -164,12 +164,12 @@ class EmotionCounterScanner(Scanner):
         self.grids = grids.crop((7, 141, 59, 154), name='EMOTION')
         self.ocr_model = IslandEmotionCounterOcr(self.grids.buttons, name='EMOTION_COUNTER_OCR')
 
-    def _scan(self, image) -> List:
+    def _scan(self, image) -> list:
         return self.ocr_model.ocr(image)
 
 
 class EmotionScanner(EmotionCounterScanner):
-    def _scan(self, image) -> List:
+    def _scan(self, image) -> list:
         results = super()._scan(image)
         return [result[0] for result in results]
 
@@ -180,7 +180,7 @@ class EmotionScanner(EmotionCounterScanner):
 
 
 class EmotionLimitScanner(EmotionCounterScanner):
-    def _scan(self, image) -> List:
+    def _scan(self, image) -> list:
         results = super()._scan(image)
         return [result[2] for result in results]
 
@@ -210,7 +210,7 @@ class GradeScanner(Scanner):
                 return grade
         return 'unknown'
 
-    def _scan(self, image) -> List:
+    def _scan(self, image) -> list:
         image_list = [crop(image, button.area) for button in self.grids.buttons]
         return [self._match(image) for image in image_list]
 
@@ -223,7 +223,7 @@ class StatusScanner(Scanner):
         super().__init__()
         self._results = []
         self.grids = grids
-        self.value_list: List[str] = ['free', 'occupied']
+        self.value_list: list[str] = ['free', 'occupied']
         self.templates = {
             TEMPLATE_ISLAND_DOCK_OCCUPIED: 'occupied'
         }
@@ -234,7 +234,7 @@ class StatusScanner(Scanner):
                 return status
         return 'free'
 
-    def _scan(self, image) -> List:
+    def _scan(self, image) -> list:
         image_list = [crop(image, button.area) for button in self.grids.buttons]
         return [self._match(image) for image in image_list]
 
@@ -262,15 +262,15 @@ class CharacterScanner(Scanner):
             self,
             grids=ISLAND_DOCK_CARD_GRIDS,
             identity: str = 'any',
-            emotion: Tuple[int, int] = (0, 999),
-            emotion_limit: Tuple[int, int] = (100, 999),
+            emotion: tuple[int, int] = (0, 999),
+            emotion_limit: tuple[int, int] = (100, 999),
             grade: str = 'any',
             status: str = 'any'
     ) -> None:
         super().__init__()
         self._results = []
         self.grids = grids
-        self.limitation: Dict[str, Union[None, Tuple[int, int], List[str], str]] = {
+        self.limitation: dict[str, tuple[int, int] | list[str] | str | None] = {
             'identity': 'any',
             'emotion': (0, 999),
             'emotion_limit': (100, 999),
@@ -278,7 +278,7 @@ class CharacterScanner(Scanner):
             'status': 'any'
         }
 
-        self.sub_scanners: Dict[str, Scanner] = {
+        self.sub_scanners: dict[str, Scanner] = {
             'identity': IdentityScanner(grids),
             'emotion': EmotionScanner(grids),
             'emotion_limit': EmotionLimitScanner(grids),
@@ -288,11 +288,11 @@ class CharacterScanner(Scanner):
 
         self.set_limitation(identity=identity, emotion=emotion, emotion_limit=emotion_limit, grade=grade, status=status)
 
-    def _scan(self, image) -> List[Character]:
+    def _scan(self, image) -> list[Character]:
         for scanner in self.sub_scanners.values():
             scanner.scan(image, cached=True)
 
-        candidates: List[Character] = [
+        candidates: list[Character] = [
             Character(
                 identity=identity,
                 emotion=emotion,
@@ -316,7 +316,7 @@ class CharacterScanner(Scanner):
 
         return candidates
 
-    def scan(self, image, cached=False, output=True) -> Union[List[Character], None]:
+    def scan(self, image, cached=False, output=True) -> list[Character] | None:
         candidates = super().scan(image, cached=cached, output=output)
         if not cached:
             return [candidate for candidate in candidates
@@ -373,7 +373,7 @@ class CharacterScanner(Scanner):
             grade (str): ['any', 'S', 'A', 'B', 'C', 'D', 'E']
             status (str): ['any', 'free', 'occupied']
         """
-        for attr in self.limitation.keys():
+        for attr in self.limitation:
             value = kwargs.get(attr, self.limitation[attr])
             self.limit_value(attr, value)
 

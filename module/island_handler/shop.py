@@ -1,19 +1,16 @@
 from jellyfish import levenshtein_distance
 
 import module.config.server as server
-from module.base.decorator import cached_property, del_cached_property
 from module.base.button import ButtonGrid
+from module.base.decorator import cached_property, del_cached_property
 from module.island.data import DIC_ISLAND_SHOP, DIC_ISLAND_SHOP_ITEM_TO_RECIPE, DIC_ISLAND_SHOP_RECIPE
-from module.island.ui import NestedNavbar
-from module.island_handler.assets import *
+from module.island_handler.assets import *  # noqa: F403  (data-bundle star import)
 from module.island_handler.shop_ui import IslandShopUI
 from module.logger import logger
 from module.ocr.ocr import Digit, Ocr
-from module.ui.assets import ISLAND_GOTO_ISLAND_SHOP
 from module.ui.navbar import Navbar
-from module.ui.page import page_island, page_island_shop
+from module.ui.page import page_island_shop
 from module.ui_white.assets import BACK_ARROW_WHITE
-
 
 SHOP_ITEM_NAME_AREA = (12, 142, 134, 163)
 
@@ -162,7 +159,7 @@ class IslandShop(IslandShopUI):
                 break
 
     def island_shop_buy_in_page(self, recipe_id, amount=1):
-        currency_id = list(DIC_ISLAND_SHOP_RECIPE[recipe_id]['resource_consume'].keys())[0]
+        currency_id = next(iter(DIC_ISLAND_SHOP_RECIPE[recipe_id]['resource_consume'].keys()))
         currency_amount = self.island_shop_get_currency().get(currency_id, 0)
         logger.info(f"Current currency amount: {currency_amount}, required: {DIC_ISLAND_SHOP_RECIPE[recipe_id]['resource_consume'][currency_id] * amount}")
         if currency_amount < DIC_ISLAND_SHOP_RECIPE[recipe_id]['resource_consume'][currency_id] * amount:
@@ -233,7 +230,7 @@ class IslandShop(IslandShopUI):
                     return True
         return success
 
-    def island_shop_buy(self, shopping_dict={}, isolated=True):
+    def island_shop_buy(self, shopping_dict={}, isolated=True):  # noqa: B006 (read-only default; changing it would alter the call sites)
         """
         Parameters:
             shopping_dict (dict): {item_id: amount} of items to buy. item_id is the id of the item in DIC_ISLAND_SHOP_RECIPE. amount is the amount to buy.

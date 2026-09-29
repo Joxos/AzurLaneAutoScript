@@ -1,11 +1,11 @@
 from module.base.button import ButtonGrid
 from module.base.timer import Timer
 from module.exception import GameStuckError
-from module.island.assets import *
+from module.island.assets import *  # noqa: F403  (data-bundle star import)
 from module.island_handler.dock import IslandDock
 from module.island_handler.dock_scanner import CharacterScanner
 from module.logger import logger
-from module.ui.page import page_island_manage, page_island_phone
+from module.ui.page import page_island_manage
 
 ISLAND_COLLECT_WORKSLOT_GRID = ButtonGrid(
     origin=(832, 227), delta=(95, 0), button_shape=(74, 74), grid_shape=(3, 1)

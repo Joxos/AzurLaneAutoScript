@@ -1,10 +1,10 @@
+import re
 from collections import namedtuple
 from datetime import datetime
-import re
 
 import cv2
-from jellyfish import levenshtein_distance
 import numpy as np
+from jellyfish import levenshtein_distance
 from yaml import safe_load
 
 import module.config.server as server
@@ -17,23 +17,23 @@ from module.island.data import DIC_ISLAND_ITEM, DIC_ISLAND_RECIPE, DIC_ISLAND_SH
 from module.island.utils import (
     ceil_div_or_ceil,
     get_idle_accumulating_batch_count,
+    get_production_target_stock,
     get_stuck_season_order_requirements,
     get_target_stock_load_rate,
-    get_production_target_stock,
     load_hard_floor_items,
     load_item_mapping,
     merge_task_target_stuck_order_items,
     normalize_item_keys,
     parse_item_need_deadlines,
 )
-from module.island_handler.assets import *
+from module.island_handler.assets import *  # noqa: F403  (data-bundle star import)
 from module.island_handler.exchange import IslandExchange
 from module.island_handler.restaurant_config import get_menu_reserve_items
 from module.island_handler.shop import IslandShop
 from module.logger import logger
 from module.map_detection.utils import Points
 from module.ocr.ocr import Digit, Duration, Ocr
-from module.ui.page import page_island, page_island_manage, page_island_shop
+from module.ui.page import page_island, page_island_manage
 
 
 class IslandProductionRestart(Exception):
@@ -59,8 +59,8 @@ ISLAND_RECIPE_AMOUNT_OCR = Digit(ISLAND_RECIPE_AMOUNT, letter=(50, 50, 57), name
 
 
 class IslandReversedDigitCounter(Ocr):
-    def __init__(self, buttons, lang='cnocr', letter=(255, 255, 255), sub_letter=None, 
-                 threshold=128, sub_threshold=128, 
+    def __init__(self, buttons, lang='cnocr', letter=(255, 255, 255), sub_letter=None,
+                 threshold=128, sub_threshold=128,
                  background_color=None,
                  alphabet='0123456789/IDSB()+', name=None):
         super().__init__(buttons, lang=lang, letter=letter, threshold=threshold, alphabet=alphabet, name=name)
@@ -87,7 +87,7 @@ class IslandReversedDigitCounter(Ocr):
                 cv2.bitwise_and(main_image, sub_image, dst=main_image)
 
         main_image = cv2.copyMakeBorder(main_image, 2, 4, 0, 0, cv2.BORDER_CONSTANT, value=(255, 255, 255))
-                    
+
         return main_image
 
     def after_process(self, result):
@@ -263,7 +263,7 @@ class IslandRecipe(IslandExchange, IslandShop):
     def recipe_grid(self):
         for _ in self.loop(timeout=2):
             grid = self.get_recipe_grid()
-            if len(grid.buttons) >= 3 or len(grid.buttons) == 1 and self.working_slot_id in [9031, 9032, 9033, 9034]:
+            if len(grid.buttons) >= 3 or (len(grid.buttons) == 1 and self.working_slot_id in [9031, 9032, 9033, 9034]):
                 return grid
         return grid
 

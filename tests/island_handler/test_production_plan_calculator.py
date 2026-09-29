@@ -3,7 +3,7 @@
 Run with (pytest is not a repo dependency, install it yourself):
     pixi run python -m pytest tests/ -v
 """
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytest
 from yaml import safe_load
@@ -59,7 +59,7 @@ class TestStaticHelpers:
         assert ProductionPlanCalculator.get_quantity_from_grade('silver') == 2
         assert ProductionPlanCalculator.get_quantity_from_grade('gold') == 3
         assert ProductionPlanCalculator.get_quantity_from_grade('diamond') == 4
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid grade: paper"):
             ProductionPlanCalculator.get_quantity_from_grade('paper')
 
     def test_format_amount(self):
@@ -235,7 +235,9 @@ class TestSolveBaseTechnology:
     def test_demand_satisfied_and_invalid_stuck_order_ignored(self):
         calc = make_calculator({})
         # 2700 (stone) is passively supplied by mining: 9 sites x 8/day
-        calc.solve_production_plan(task_target_items={2700: 100}, stuck_season_order_id='abc')
+        # A malformed id must be ignored, not raise: that is the behaviour
+        # under test, so the annotation is violated on purpose.
+        calc.solve_production_plan(task_target_items={2700: 100}, stuck_season_order_id='abc')  # type: ignore[arg-type]
         assert calc.lp_success
         # 100 over default 10-day period -> 10 per day
         assert calc.demand_items[2700]['rate_per_day'] == pytest.approx(10.0)
@@ -299,14 +301,16 @@ class TestSolveAllTechnology:
     def test_yaml_exports_parse(self, all_tech_koi_solved):
         calc = all_tech_koi_solved
         buffer_items = safe_load(calc.daily_buffer_items_to_yaml())
-        assert isinstance(buffer_items, dict) and buffer_items
+        assert isinstance(buffer_items, dict)
+        assert buffer_items
         assert all(isinstance(amount, int) and amount >= 1 for amount in buffer_items.values())
         idle_items = safe_load(calc.idle_accumulating_items_to_yaml())
         assert idle_items is None or isinstance(idle_items, dict)
         menus = calc.restaurant_menus_to_yaml()
         assert sorted(menus) == [601, 602, 603, 604, 901]
         koi_menu = safe_load(menus[601])
-        assert isinstance(koi_menu, dict) and koi_menu
+        assert isinstance(koi_menu, dict)
+        assert koi_menu
 
     def test_format_solved_production_plan(self, all_tech_koi_solved):
         text = all_tech_koi_solved.format_solved_production_plan()
@@ -318,7 +322,8 @@ class TestSolveAllTechnology:
 class TestDailyBufferSafetyMargin:
     def test_margin_scales_buffer(self, margin_solved):
         calc0, calc1 = margin_solved
-        assert calc0.lp_success and calc1.lp_success
+        assert calc0.lp_success
+        assert calc1.lp_success
         assert calc0.product_daily_buffer_items, 'expected buffer items to compare'
         # Margin does not change the LP itself, only export post-processing
         assert set(calc0.product_daily_buffer_items) == set(calc1.product_daily_buffer_items)
