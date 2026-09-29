@@ -209,6 +209,15 @@ class WorkerThread:
 
         result = capture(func, *args, **kwargs)
 
+        if isinstance(result, Error) and isinstance(result.error, _JobKill):
+            # Job killed. `capture()` catches BaseException, so the kill request
+            # arrives here as a value instead of unwinding the thread; re-raise it
+            # (outside of `capture()`) so the thread exits. Losing it here would
+            # leave a worker that `kill()` already removed from `all_workers` alive
+            # and idle: it would come back into `idle_workers` and crash one
+            # IDLE_TIMEOUT later on `del all_workers[self]`.
+            raise result.error
+
         # Tell the cache that we're available to be assigned a new
         # job. We do this *before* calling 'deliver', so that if
         # 'deliver' triggers a new job, it can be assigned to us
@@ -217,15 +226,11 @@ class WorkerThread:
         self.thread_pool.release_full_lock()
 
         # Deliver
-        if isinstance(result, Error) and isinstance(result.error, _JobKill):
-            # Job killed
-            pass
-        else:
-            # Job finished, putin result and notify
-            with job.put_lock:
-                job.queue.append(result)
-                del job.worker
-                job.notify_get.release()
+        # Job finished, putin result and notify
+        with job.put_lock:
+            job.queue.append(result)
+            del job.worker
+            job.notify_get.release()
 
     def _work(self) -> None:
         while True:
@@ -248,7 +253,9 @@ class WorkerThread:
                     # We successfully removed ourselves from the idle
                     # worker queue, so no more jobs are incoming; it's safe to
                     # exit.
-                    del self.thread_pool.all_workers[self]
+                    # `kill()` may have popped us from `all_workers` already, so
+                    # don't use `del`, a KeyError here would kill the thread.
+                    self.thread_pool.all_workers.pop(self, None)
                     self.thread_pool.release_full_lock()
                     return
 
