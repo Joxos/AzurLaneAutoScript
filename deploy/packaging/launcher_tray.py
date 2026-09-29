@@ -107,6 +107,7 @@ class TrayController:
         self.stop = stop
         self.icon: Any = None
         self._configs: list[str] = []
+        self._notes: list[str] = []
 
     # --- state ------------------------------------------------------------
 
@@ -159,8 +160,30 @@ class TrayController:
     # --- menu actions -----------------------------------------------------
 
     def open_window(self, *_args) -> None:
-        """Show the window again after it was closed to the tray."""
+        """Show the window again after it was closed to the tray.
+
+        The native window belongs to the backend process, so it is asked for
+        over the API the tray already talks to. A browser is the fallback for
+        a headless/web backend, where there is no window to restore.
+        """
+        result = self.api("/api/window/show", {})
+        if isinstance(result, dict) and result.get("shown"):
+            return
+        reason = (result or {}).get("reason", "backend did not confirm") if isinstance(result, dict) else "no answer"
+        self._note(f"no native window to show ({reason}); opening a browser tab")
         webbrowser.open(self.url())
+
+    def hide_window(self, *_args) -> None:
+        """Start hidden in the tray."""
+        result = self.api("/api/window/hide", {})
+        if not (isinstance(result, dict) and result.get("hidden")):
+            self._note("could not hide the window; it stays visible")
+
+    def _note(self, message: str) -> None:
+        """Surface a fallback in the tray tooltip; there is no console here."""
+        self._notes.append(message)
+        if self.icon is not None:
+            self.icon.title = f"{APP_NAME} ({'; '.join(self._notes[-2:])})"
 
     def open_logs(self, *_args) -> None:
         log_dir = self.data / "log"
@@ -213,6 +236,7 @@ class TrayController:
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Open window", self.open_window, default=True),
+            pystray.MenuItem("Hide window", self.hide_window),
             pystray.MenuItem("Configs", configs, enabled=bool(self._configs)),
             pystray.MenuItem("Log folder", self.open_logs),
             pystray.MenuItem("Data folder", self.open_data_dir),
@@ -221,7 +245,7 @@ class TrayController:
         )
 
 
-def run_tray(process: Any, root: Path, data: Path, stop: threading.Event) -> int:
+def run_tray(process: Any, root: Path, data: Path, stop: threading.Event, start_hidden: bool = False) -> int:
     """Entry the launcher calls; blocks until the user quits."""
     if pystray is None:  # pragma: no cover - stripped build
         return process.wait() if process is not None else 0
@@ -236,6 +260,13 @@ def run_tray(process: Any, root: Path, data: Path, stop: threading.Event) -> int
             time.sleep(2)
 
     threading.Thread(target=watch, daemon=True).start()
+    if start_hidden:
+        # The backend needs a moment before it answers; a failure here is
+        # reported, not silently ignored (the user would see nothing happen).
+        deadline = time.time() + 20
+        while time.time() < deadline and not controller.api("/api/window"):
+            time.sleep(1)
+        controller.hide_window()
     icon.run()  # blocks until quit() from the menu
     controller.quit()
     return 0

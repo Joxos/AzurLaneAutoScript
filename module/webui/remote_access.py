@@ -14,7 +14,7 @@ import shlex
 import threading
 import time
 from subprocess import PIPE, Popen
-from typing import TYPE_CHECKING
+from typing import IO, TYPE_CHECKING, cast
 
 from module.config.utils import random_id
 from module.logger import logger
@@ -23,10 +23,11 @@ from module.webui.setting import State
 if TYPE_CHECKING:
     from module.webui.tasks import TaskHandler
 
-_ssh_process: Popen = None
-_ssh_thread: threading.Thread = None
+# Published so the shutdown paths can reach the process; None until one starts.
+_ssh_process: Popen | None = None
+_ssh_thread: threading.Thread | None = None
 _ssh_notfound: bool = False
-address: str = None
+address: str | None = None
 
 
 def am_i_the_only_thread() -> bool:
@@ -65,33 +66,41 @@ def remote_access_service(
         logger.warning(f"Kill previous ssh process [{_ssh_process.pid}]")
         _ssh_process.kill()
     try:
-        _ssh_process = Popen(args, stdout=PIPE, stderr=PIPE)
+        # PIPE was passed on both streams, so they are never None; typeshed
+        # still models them as optional, hence the cast.
+        process = Popen(args, stdout=PIPE, stderr=PIPE)
+        stdout_stream = cast("IO[bytes]", process.stdout)
+        stderr_stream = cast("IO[bytes]", process.stderr)
     except FileNotFoundError:
         logger.critical(
             f"Cannot find SSH executable {bin}, please install OpenSSH or specify SSHExecutable in deploy.yaml"
         )
         _ssh_notfound = True
         return
-    logger.info(f"remote access process pid: {_ssh_process.pid}")
+    # Published for the shutdown paths (start_remote_access_service_ and the
+    # app-exit branch below); everything else in this function uses the local
+    # handle, so the timeout thread cannot observe a half-swapped global.
+    _ssh_process = process
+    logger.info(f"remote access process pid: {process.pid}")
     success = False
 
     def timeout_killer(wait_sec):
         time.sleep(wait_sec)
-        if not success and _ssh_process.poll() is None:
+        if not success and process.poll() is None:
             logger.info("Connection timeout, kill ssh process")
-            _ssh_process.kill()
+            process.kill()
 
     threading.Thread(target=timeout_killer, kwargs={"wait_sec": setup_timeout}, daemon=True).start()
 
-    stdout = _ssh_process.stdout.readline().decode("utf8")
+    stdout = stdout_stream.readline().decode("utf8")
     logger.debug(f"ssh server stdout: {stdout}")
     connection_info = {}
     try:
         connection_info = json.loads(stdout)
         success = True
     except json.decoder.JSONDecodeError:
-        if not success and _ssh_process.poll() is None:
-            _ssh_process.kill()
+        if not success and process.poll() is None:
+            process.kill()
 
     if success:
         if connection_info.get("status", "fail") != "success":
@@ -108,15 +117,15 @@ def remote_access_service(
             logger.debug(f"Remote access url: {address}")
 
     # wait ssh or main thread exit
-    while not am_i_the_only_thread() and _ssh_process.poll() is None:
-        # while _ssh_process.poll() is None:
+    while not am_i_the_only_thread() and process.poll() is None:
+        # while process.poll() is None:
         time.sleep(1)
 
-    if _ssh_process.poll() is None:  # main thread exit, kill ssh process
+    if process.poll() is None:  # main thread exit, kill ssh process
         logger.info("App process exit, killing ssh process")
-        _ssh_process.kill()
+        process.kill()
     else:  # ssh process exit by itself or by timeout killer
-        stderr = _ssh_process.stderr.read().decode("utf8")
+        stderr = stderr_stream.read().decode("utf8")
         if stderr:
             logger.error(f"Alas remote access service error: {stderr}")
         else:
@@ -146,10 +155,13 @@ class ParseError(Exception):
 def start_remote_access_service(**kwagrs):
     global _ssh_thread
 
+    # SSHServer is optional in deploy.yaml; treat "unset" the same as
+    # "malformed" instead of letting a None reach .split().
+    ssh_server = State.deploy_config.SSHServer or ""
     try:
-        server, server_port = State.deploy_config.SSHServer.split(":")
-    except (ValueError, AttributeError):
-        raise ParseError(f"Failed to parse SSH server [{State.deploy_config.SSHServer}]")
+        server, server_port = ssh_server.split(":")
+    except ValueError:
+        raise ParseError(f"Failed to parse SSH server [{ssh_server}]") from None
     if State.deploy_config.WebuiHost == "0.0.0.0":
         local_host = "127.0.0.1"
     elif State.deploy_config.WebuiHost == "::":
@@ -195,8 +207,9 @@ class RemoteAccess:
 
     @staticmethod
     def kill_ssh_process():
-        if RemoteAccess.is_alive():
-            _ssh_process.kill()
+        process = _ssh_process
+        if process is not None and RemoteAccess.is_alive():
+            process.kill()
 
     @staticmethod
     def is_alive():

@@ -37,7 +37,7 @@ def get_config(config_name: str):
 def set_config(config_name: str, request: SetValueRequest):
     # request.value: {path.key: value} pairs, path joined by '.'
     modified = request.value
-    args_schema = read_file(filepath_args("args", "alas"))
+    args_schema: dict[str, Any] = read_file(filepath_args("args", "alas"))
     return _save_config(modified, config_name, args_schema)
 
 

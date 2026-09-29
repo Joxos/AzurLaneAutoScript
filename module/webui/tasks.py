@@ -25,7 +25,9 @@ class Task:
         g.send(None)
         self.delay = delay
         self.next_run = next_run if next_run else time.time()
-        self.name = name if name is not None else self.g.__name__
+        # A generator object carries a __dict__, so this attribute sticks
+        # (pyright believes generators are attribute-less; verified on 3.13).
+        self.name = name if name is not None else self.g.__name__  # type: ignore[attr-defined]
 
     def __str__(self) -> str:
         return f"<{self.name} (delay={self.delay})>"
@@ -46,7 +48,7 @@ def get_generator(func: Callable):
             yield func()
 
     g = _g()
-    g.__name__ = func.__name__
+    g.__name__ = func.__name__  # type: ignore[attr-defined]  # generators have a __dict__
     return g
 
 
@@ -57,9 +59,9 @@ class TaskHandler:
         # List of task name to be removed
         self.pending_remove_tasks: list[Task] = []
         # Running task
-        self._task = None
+        self._task: Task | None = None
         # Task running thread
-        self._thread: threading.Thread = None
+        self._thread: threading.Thread | None = None
         self._alive = False
         self._lock = threading.Lock()
 
@@ -119,7 +121,11 @@ class TaskHandler:
             self.pending_remove_tasks = []
 
     def remove_current_task(self) -> None:
-        self.remove_task(self._task, nowait=True)
+        # Called from the webui to interrupt a running task; before the first
+        # task starts there is nothing to remove (remove_task would append
+        # None and blow up later in the loop).
+        if self._task is not None:
+            self.remove_task(self._task, nowait=True)
 
 
     def loop(self) -> None:
@@ -142,7 +148,7 @@ class TaskHandler:
                         logger.exception(e)
                         self.remove_task(task, nowait=True)
                     finally:
-                        self._task = None
+                        self._task: Task | None = None
                     end_time = time.time()
                     task.next_run += task.delay
                     with self._lock:
@@ -172,8 +178,14 @@ class TaskHandler:
     def stop(self) -> None:
         self.remove_pending_task()
         self._alive = False
-        self._thread.join(timeout=2)
-        if not self._thread.is_alive():
+        thread = self._thread
+        if thread is None:
+            # stop() before run(): there is no thread to join, and the pending
+            # tasks are already cleared above.
+            logger.info("Task handler was not running")
+            return
+        thread.join(timeout=2)
+        if not thread.is_alive():
             logger.info("Finish task handler")
         else:
             logger.warning("Task handler does not stop within 2 seconds")

@@ -171,11 +171,17 @@ def run_web(args: WebArgs, open_browser: bool = True, key: str | None = None) ->
             process.join()
 
 
-def run_desktop(args: WebArgs, key: str | None = None) -> None:
+def run_desktop(args: WebArgs, key: str | None = None, tray: bool = False) -> None:
     """Start the webui backend in a thread and open a native window (pywebview).
 
     Falls back to the default browser when pywebview is not installed (e.g.
     fresh source checkout without the optional dependency).
+
+    With `tray=True` the window belongs to the launcher (which shows the tray
+    icon): closing it hides to the tray instead of shutting the bot down, and
+    the window is brought back over the REST endpoint the tray calls. That
+    also means the server is NOT stopped when the window goes away - only the
+    tray's Quit does that, and it terminates this process anyway.
     """
     try:
         import webview  # probe only; imported again below after the server is up
@@ -201,6 +207,7 @@ def run_desktop(args: WebArgs, key: str | None = None) -> None:
     logger.hr("Desktop window")
     logger.attr("Host", args.host)
     logger.attr("Port", args.port)
+    logger.attr("Tray", tray)
 
     if not _wait_until_ready(args.port):
         logger.critical("Backend did not become ready in time, exiting")
@@ -213,10 +220,41 @@ def run_desktop(args: WebArgs, key: str | None = None) -> None:
     window = webview.create_window(
         "Alas", f"http://127.0.0.1:{args.port}", width=1280, height=800, min_size=(960, 600)
     )
-    window.events.closed += lambda: setattr(server, "should_exit", True)
+    if tray:
+        _install_tray_close_behavior(window, server)
+        State.window = window
+    else:
+        window.events.closed += lambda: setattr(server, "should_exit", True)
     webview.start()
 
-    # Closing the window stops the server; its lifespan shutdown then kills
-    # the bot processes (State.clearup / ProcessManager.stop), so nothing is
-    # left orphaned (previously handled by Tauri's kill-on-close job object).
+    # Without a tray, closing the window stops the server; its lifespan
+    # shutdown then kills the bot processes (State.clearup /
+    # ProcessManager.stop), so nothing is left orphaned. With a tray the
+    # launcher owns the exit and this process is terminated from outside.
     thread.join(timeout=10)
+
+
+def _install_tray_close_behavior(win: Any, server: Any) -> None:
+    """Close = hide (the tray keeps the bot running); only Quit really exits.
+
+    pywebview's cancel protocol is a *return value*: a `closing` handler that
+    returns False makes the platform set `args.Cancel` (see
+    webview/platforms/winforms.py::on_closing). There is no `event.cancel` to
+    set.
+
+    The window is received through pywebview's own parameter injection, which
+    only applies to a parameter literally named `window`
+    (webview/event.py::Event.set) - any other name would be called with no
+    arguments at all. The captured handle is the fallback for a platform that
+    calls the handler without injecting anything.
+    """
+
+    def on_closing(window: Any = None) -> bool | None:
+        target = window if window is not None else win
+        if server.should_exit:
+            return None  # a real shutdown is already under way: let it close
+        target.hide()
+        logger.info("Window closed, still running in the tray")
+        return False  # pywebview cancels the close
+
+    win.events.closing += on_closing

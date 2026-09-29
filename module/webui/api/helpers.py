@@ -86,9 +86,13 @@ def build_status() -> dict[str, Any]:
     }
 
 
-def _parse_value(value: Any, valuetype: str) -> Any:
-    """Convert a frontend value to the python type defined by valuetype."""
-    if value is None:
+def _parse_value(value: Any, valuetype: str | None) -> Any:
+    """Convert a frontend value to the python type defined by valuetype.
+
+    `valuetype` is optional: an argument without one in the schema keeps the
+    value exactly as the frontend sent it.
+    """
+    if value is None or valuetype is None:
         return value
     if valuetype == "int":
         return int(value)
@@ -149,7 +153,7 @@ def _save_config(modified: dict[str, Any], config_name: str, args_schema: dict[s
                     valuetype = "int"
                 elif all(isinstance(o, float) for o in option):
                     valuetype = "float"
-        v = _parse_value(v, valuetype)
+        v = _parse_value(v, valuetype) if isinstance(valuetype, str) else v
         validate = deep_get(args_schema, k + ".validate")
         if not len(str(v)):
             default = deep_get(args_schema, k + ".value")
@@ -168,7 +172,7 @@ def _save_config(modified: dict[str, Any], config_name: str, args_schema: dict[s
             for set_key, set_value in config_updater.save_callback(k, v):
                 deep_set(config, set_key, set_value)
                 valid.append(set_key)
-        elif not validate or re.fullmatch(validate, str(v)):
+        elif not validate or (isinstance(validate, str) and re.fullmatch(validate, str(v))):
             deep_set(config, k, v)
             valid.append(k)
             for set_key, set_value in config_updater.save_callback(k, v):

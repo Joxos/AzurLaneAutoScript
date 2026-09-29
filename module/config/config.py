@@ -73,7 +73,9 @@ def _format_scheduler_task(func):
 
 
 class AzurLaneConfig(ConfigUpdater, ManualConfig, GeneratedConfig, ConfigWatcher):
-    stop_event: threading.Event = None
+    # Set on the class by ProcessManager before a bot loop starts, so every
+    # config instance in that process shares one stop signal.
+    stop_event: threading.Event | None = None
     bound = {}
 
     # Class property

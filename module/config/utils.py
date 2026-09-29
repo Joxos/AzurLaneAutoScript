@@ -2,6 +2,7 @@ import json
 import random
 import string
 from datetime import UTC, datetime, timedelta, timezone
+from typing import Any
 
 import yaml
 
@@ -67,7 +68,7 @@ def filepath_code():
     return './module/config/config_generated.py'
 
 
-def read_file(file):
+def read_file(file) -> Any:
     """
     Read a file, support both .yaml and .json format.
     Return empty dict if file not exists.
@@ -76,7 +77,11 @@ def read_file(file):
         file (str):
 
     Returns:
-        dict, list:
+        Any: whatever the file holds - a dict for config/args files, a list
+        for multi-document yaml. The shape belongs to the file, so callers
+        declare it (`args: dict[str, Any] = read_file(...)`) instead of this
+        boundary guessing; a union return type only produced false errors at
+        every call site.
     """
     print(f'read: {file}')
     if file.endswith('.json'):
@@ -279,7 +284,11 @@ def server_time_offset() -> timedelta:
     To convert server time to local time:
         local_time = server_time + server_time_offset()
     """
-    return datetime.now(UTC).astimezone().utcoffset() - server_timezone()
+    local_offset = datetime.now().astimezone().utcoffset()
+    # An aware datetime always carries an offset; the assertion documents the
+    # invariant instead of silently computing against None.
+    assert local_offset is not None
+    return local_offset - server_timezone()
 
 
 def random_normal_distribution_int(a, b, n=3):

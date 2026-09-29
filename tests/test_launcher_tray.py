@@ -221,8 +221,16 @@ def test_icon_image_is_a_rgba_square():
 
 def test_launcher_exposes_the_hook_the_tray_registers():
     source = (ROOT / "deploy" / "packaging" / "launcher.py").read_text(encoding="utf-8")
-    assert "from launcher_tray import run_tray" in source
-    assert "run_tray(process, root, data, stop)" in source
+    assert "from launcher_tray import pystray, run_tray" in source
+    assert "run_tray(process, root, data, stop, start_hidden=hidden)" in source
+
+
+def test_launcher_only_asks_for_tray_mode_when_the_tray_exists():
+    """`--tray` makes closing the window hide it; without a tray that flag must
+    not be passed, or the user would have no way to quit the bot."""
+    source = (ROOT / "deploy" / "packaging" / "launcher.py").read_text(encoding="utf-8")
+    assert "if run_tray is not None:" in source
+    assert 'command.append("--tray")' in source
 
 
 def test_tray_does_not_import_the_project():

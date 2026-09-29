@@ -41,8 +41,15 @@ jobs:
       - name: Lint
         run: uv run ruff check .
 
-      - name: Type check (scoped)
-        run: uv run pyright module/logger.py module/scheduler module/tasks tests
+      - name: Type check
+        # Scope widened 2026-09-29 to the layers that own runtime state:
+        # the webui (manager/queues/tasks), the CLI, the flow engine and the
+        # packaging scripts. module/config + module/device + module/flow's CV2
+        # callers still carry pre-existing findings and are deliberately out.
+        run: >
+          uv run pyright module/logger.py module/scheduler module/tasks
+          module/webui module/cli module/config/utils.py module/flow
+          deploy/packaging tests
 
       - name: Import smoke (full tree)
         run: uv run python dev_tools/smoke_import_all.py
@@ -66,6 +73,13 @@ jobs:
       # is not aligned" bug).
       - name: Log cell-grid gate
         run: node dev_tools/verify_log_align.mjs
+
+      # Upstream redefines recognition arguments (image_color_count's threshold
+      # changed from a similarity floor to a tolerance). This compares every
+      # call site against upstream and fails when one of ours kept the old
+      # number - the silent "matches everything" class of bug.
+      - name: Recognition arguments vs upstream
+        run: uv run python dev_tools/verify_thresholds.py --check
 
       - name: Equivalence gates (Phase 456)
         run: |

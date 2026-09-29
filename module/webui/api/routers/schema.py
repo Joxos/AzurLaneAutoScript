@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter
 
 from module.config.utils import filepath_args, read_file
@@ -11,7 +13,9 @@ def get_schema(mod_name: str = "alas"):
     from module.config.server import to_server
 
     menu = read_file(filepath_args("menu", mod_name))
-    args = read_file(filepath_args("args", mod_name))
+    # args.json is generated as {task: {group: {arg: {...}}}}; the annotation
+    # states the shape the generator guarantees.
+    args: dict[str, Any] = read_file(filepath_args("args", mod_name))
     # Resolve server-specific select options, mirroring the legacy
     # AlasGUI.set_group() behavior.
     server = to_server("cn")

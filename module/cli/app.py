@@ -72,12 +72,16 @@ def run_desktop(
     key: Annotated[str | None, typer.Option("--key", "-k", help="Webui password (persists to deploy.yaml).")] = None,
     ssl_key: Annotated[str | None, typer.Option("--ssl-key", help="SSL key file.")] = None,
     ssl_cert: Annotated[str | None, typer.Option("--ssl-cert", help="SSL certificate file.")] = None,
+    tray: Annotated[
+        bool,
+        typer.Option("--tray", help="Closing the window hides it instead of stopping the bot (the tray shows/quit it)."),
+    ] = False,
 ) -> None:
     """Start the WebUI backend and open a native desktop window (pywebview)."""
     from module.cli.run import run_desktop as _impl
 
     args = resolve_web_args(host, port, key, ssl_key, ssl_cert, *_deploy_web_values())
-    _impl(args, key=key)
+    _impl(args, key=key, tray=tray)
 
 
 @build_app.command("frontend")

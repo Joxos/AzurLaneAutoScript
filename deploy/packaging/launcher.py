@@ -17,11 +17,14 @@ better than the backend process:
 - it owns the user data directory (`config/ log/ assets/ bin/`) and keeps it
   out of Program Files, so an update that replaces the program directory
   cannot touch user data;
-- it can host the tray icon (see module/cli/tray.py) and the single-instance
-  handshake, without the backend knowing about either.
+- it hosts the tray icon, so closing the window hides to the tray (the bot
+  keeps running) and only Quit stops it. It also owns the single-instance pid
+  file: a second Alas.exe brings the running window back.
 
 The launcher imports nothing from the project on purpose: it must stay a
-small bundle that can start (and outlive) the 200MB sidecar.
+small bundle that can start (and outlive) the 200MB sidecar. And because it
+is a GUI build it has no console - everything it wants to say goes to
+<data>/log/launcher.log.
 """
 
 from __future__ import annotations
@@ -37,8 +40,6 @@ from pathlib import Path
 # CREATE_NO_WINDOW: the sidecar keeps its console subsystem (so tracebacks go
 # to stderr, which we mirror into backend.log) but no window appears.
 CREATE_NO_WINDOW = 0x0800_0000
-DETACHED_PROCESS = 0x0000_0008
-CREATE_NEW_PROCESS_GROUP = 0x0000_0200
 
 
 def bundle_dir() -> Path:
@@ -76,6 +77,21 @@ def seed_data_dir(target: Path, root: Path) -> None:
     user_deploy = target / "config" / "deploy.yaml"
     if template.is_file() and not user_deploy.exists():
         user_deploy.write_bytes(template.read_bytes())
+
+
+def log_line(data: Path, message: str) -> None:
+    """A GUI-subsystem build has no console: this file is the only trace.
+
+    Every launcher-side note goes here, so "nothing happened" is always
+    diagnosable without attaching a debugger.
+    """
+    try:
+        log = data / "log" / "launcher.log"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        with log.open("a", encoding="utf-8", errors="replace") as sink:
+            sink.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}\n")
+    except OSError:
+        pass  # a launcher that cannot log must still start the app
 
 
 def tail_to_log(stream, log_path: Path, stop: threading.Event) -> None:
@@ -141,15 +157,62 @@ def quit_running(data: Path, timeout: float = 15.0) -> int:
         if read_pid(data) is None:
             return 0
         time.sleep(0.3)
+    log_line(data, f"--quit: pid {pid} still alive after {timeout:.0f}s")
     return 1  # still there; the caller reports the failure
+
+
+def load_tray():
+    """The tray entry point if this build has one, else None.
+
+    The tray is what makes `--tray` (close = hide, bot keeps running) worth
+    passing to the sidecar: without a tray, closing the window is the only way
+    out and it has to shut the bot down.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        from launcher_tray import pystray, run_tray  # bundled next to this file
+    except ImportError:
+        return None
+    return None if pystray is None else run_tray
+
+
+def focus_running(data: Path) -> int:
+    """A second Alas.exe: bring the running window back instead of failing.
+
+    Returns 0 when the window is back, 3 when the running instance could not
+    be reached (logged, so the user can find out why).
+    """
+    port = 22267
+    try:
+        from launcher_tray import read_port
+
+        port = read_port(data)
+    except ImportError:
+        pass
+    try:
+        import urllib.request
+
+        request = urllib.request.Request(f"http://127.0.0.1:{port}/api/window/show", data=b"{}", method="POST")
+        with urllib.request.urlopen(request, timeout=5) as resp:
+            shown = b'"shown":true' in resp.read().replace(b" ", b"").lower()
+        if shown:
+            log_line(data, "second start: the running window was brought back")
+            return 0
+        log_line(data, "second start: the running instance has no window to show")
+    except Exception as e:
+        log_line(data, f"second start: could not reach the running instance ({e})")
+    return 3
 
 
 USAGE = """Alas desktop launcher
 
   Alas.exe              start the app (the common case; double-click it)
+  Alas.exe --hidden     start it minimized into the tray
   Alas.exe --quit       stop a running instance (installer / updater use this)
   Alas.exe --status     print the running instance's pid, if any
   Alas.exe --help       this text
+
+Everything the launcher does is recorded in <data>/log/launcher.log.
 """
 
 
@@ -169,30 +232,39 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if pid else 1
 
     seed_data_dir(data, root)
+    run_tray = load_tray()
+    hidden = "--hidden" in argv
 
     # One instance per data directory: a second start would race the first for
-    # the same port and the same config files. Checked before the sidecar, so
-    # "already running" is the answer the user actually needs.
+    # the same port and the same config files. Instead of failing, it brings
+    # the running window back - that is what double-clicking the icon again
+    # means to a user.
     if read_pid(data) is not None:
-        sys.stderr.write("Alas is already running (check the window or the tray icon)\n")
-        return 3
+        return focus_running(data)
 
     sidecar = root / "alas-backend" / "alas-backend.exe"
     if not sidecar.is_file():
-        sys.stderr.write(f"alas-backend.exe not found next to the launcher: {sidecar}\n")
+        log_line(data, f"alas-backend.exe not found next to the launcher: {sidecar}")
         return 2
+
+    command = [str(sidecar), "run", "desktop"]
+    if run_tray is not None:
+        command.append("--tray")
+    elif hidden:
+        log_line(data, "--hidden ignored: this build has no tray")
 
     env = dict(os.environ, ALAS_DATA_DIR=str(data))
     # The backend treats its CWD as the user data directory (module/base/paths.py).
     creationflags = CREATE_NO_WINDOW if os.name == "nt" else 0
     process = subprocess.Popen(
-        [str(sidecar), "run", "desktop"],
+        command,
         cwd=str(data),
         env=env,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
         creationflags=creationflags,
     )
+    log_line(data, f"started {' '.join(command)} (pid {process.pid}, data {data})")
 
     stop = threading.Event()
     if process.stderr is not None:
@@ -203,16 +275,9 @@ def main(argv: list[str] | None = None) -> int:
         ).start()
     pid_file(data).write_text(str(os.getpid()), encoding="utf-8")
 
-    # The tray hooks in here; without it the launcher is a plain runner.
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
     try:
-        from launcher_tray import run_tray  # bundled next to this file in the installed build
-    except ImportError:
-        run_tray = None
-    if run_tray is not None:
-        return int(run_tray(process, root, data, stop) or 0)
-
-    try:
+        if run_tray is not None:
+            return int(run_tray(process, root, data, stop, start_hidden=hidden) or 0)
         return process.wait()
     except KeyboardInterrupt:
         process.terminate()
@@ -221,6 +286,7 @@ def main(argv: list[str] | None = None) -> int:
         stop.set()
         with suppress(OSError):
             pid_file(data).unlink()
+        log_line(data, "launcher stopped")
 
 
 if __name__ == "__main__":

@@ -15,7 +15,19 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from module.logger import logger
-from module.webui.api.routers import config, control, events, i18n, remote, scheduler, schema, status, theme, updater
+from module.webui.api.routers import (
+    config,
+    control,
+    events,
+    i18n,
+    remote,
+    scheduler,
+    schema,
+    status,
+    theme,
+    updater,
+    window,
+)
 from module.webui.process_manager import ProcessManager
 from module.webui.setting import State
 
@@ -162,6 +174,7 @@ def create_api_app() -> FastAPI:
     app.include_router(remote.router)
     app.include_router(scheduler.router)
     app.include_router(events.router)
+    app.include_router(window.router)
 
     # ---------- frontend (production build of the Svelte SPA) ----------
     from fastapi.staticfiles import StaticFiles

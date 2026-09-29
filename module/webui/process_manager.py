@@ -28,14 +28,18 @@ class ProcessManager:
 
     def __init__(self, config_name: str = "alas") -> None:
         self.config_name = config_name
-        self._renderable_queue: queue.Queue[ConsoleRenderable] = State.manager.Queue()
-        self._scheduler_queue: queue.Queue = State.manager.Queue()
-        self.renderables: list[ConsoleRenderable] = []
+        # State.init() (webui lifespan) owns the manager; require_manager()
+        # says so plainly if something constructs a manager before that.
+        manager = State.require_manager()
+        self._renderable_queue: queue.Queue[ConsoleRenderable] = manager.Queue()
+        self._scheduler_queue: queue.Queue = manager.Queue()
+        # rich renderables from the bot, plus the plain "exited" line below
+        self.renderables: list[ConsoleRenderable | str] = []
         self.renderables_max_length = 400
         self.renderables_reduce_length = 80
-        self._process: Process = None
+        self._process: Process | None = None
         self._process_locks: dict[str, threading.Lock] = {}
-        self.thd_log_queue_handler: threading.Thread = None
+        self.thd_log_queue_handler: threading.Thread | None = None
 
     def start(self, func, ev: threading.Event | None = None) -> None:
         if not self.alive:
@@ -68,8 +72,9 @@ class ProcessManager:
             self._process_locks[self.config_name] = lock
 
         with lock:
-            if self.alive:
-                self._process.kill()
+            process = self._process
+            if process is not None and process.is_alive():
+                process.kill()
                 self.renderables.append(f"[{self.config_name}] exited. Reason: Manual stop\n")
             if self.thd_log_queue_handler is not None:
                 self.thd_log_queue_handler.join(timeout=1)
@@ -124,7 +129,11 @@ class ProcessManager:
 
     @staticmethod
     def run_process(
-        config_name, func: str, q: queue.Queue, scheduler_queue: queue.Queue, e: threading.Event | None = None
+        config_name,
+        func: str,
+        q: queue.Queue,
+        scheduler_queue: queue.Queue,
+        stop_event: threading.Event | None = None,
     ) -> None:
         # Keep the automation at below-normal priority so a fully busy bot
         # can never starve the desktop (mouse/UI/DWM stay responsive).
@@ -144,14 +153,14 @@ class ProcessManager:
         # Push live scheduler snapshots to the webui (non-blocking).
         set_scheduler_publisher(scheduler_queue.put_nowait)
 
-        AzurLaneConfig.stop_event = e
+        AzurLaneConfig.stop_event = stop_event
         try:
             # Run alas
             if func == "alas":
                 from module.alas import AzurLaneAutoScript
 
-                if e is not None:
-                    AzurLaneAutoScript.stop_event = e
+                if stop_event is not None:
+                    AzurLaneAutoScript.stop_event = stop_event
                 AzurLaneAutoScript(config_name=config_name).loop()
             elif func in get_available_func():
                 from module.alas import AzurLaneAutoScript
@@ -159,12 +168,19 @@ class ProcessManager:
                 AzurLaneAutoScript(config_name=config_name).run(inflection.underscore(func), skip_first_screenshot=True)
             elif func in get_available_mod():
                 mod = load_mod(func)
+                if mod is None:
+                    # load_mod returns None when the submodule is unknown; a
+                    # clear error beats an AttributeError on None below.
+                    raise RuntimeError(f"Cannot load submodule '{func}'")
 
-                if e is not None:
-                    mod.set_stop_event(e)
+                if stop_event is not None:
+                    mod.set_stop_event(stop_event)
                 mod.loop(config_name)
             elif func in get_available_mod_func():
-                getattr(load_mod(get_func_mod(func)), inflection.underscore(func))(config_name)
+                mod_func = load_mod(get_func_mod(func))
+                if mod_func is None:
+                    raise RuntimeError(f"Cannot load submodule '{get_func_mod(func)}'")
+                getattr(mod_func, inflection.underscore(func))(config_name)
             else:
                 logger.critical(f"No function matched: {func}")
             logger.info(f"[{config_name}] exited. Reason: Finish\n")
