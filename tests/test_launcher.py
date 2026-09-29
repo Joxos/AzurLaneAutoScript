@@ -16,9 +16,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-_spec = importlib.util.spec_from_file_location("alas_launcher", ROOT / "deploy" / "packaging" / "launcher.py")
-launcher = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(launcher)
+def _load(name: str, relative: str):
+    """Import a packaging module by path (it is not an importable package)."""
+    spec = importlib.util.spec_from_file_location(name, ROOT / relative)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+launcher = _load("alas_launcher", "deploy/packaging/launcher.py")
 
 
 def test_data_dir_defaults_to_localappdata(monkeypatch):

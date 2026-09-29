@@ -203,7 +203,8 @@ def main(argv: list[str] | None = None) -> int:
         ).start()
     pid_file(data).write_text(str(os.getpid()), encoding="utf-8")
 
-    # The tray (S4) hooks in here; without it the launcher is a plain runner.
+    # The tray hooks in here; without it the launcher is a plain runner.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     try:
         from launcher_tray import run_tray  # bundled next to this file in the installed build
     except ImportError:

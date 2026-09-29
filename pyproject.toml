@@ -47,6 +47,9 @@ dependencies = [
     "typer>=0.12",
     # Desktop window (`alas run desktop`; PyInstaller sidecar bundle includes it)
     "pywebview>=5.1,<7",
+    # Tray icon, imported only by the launcher (deploy/packaging/launcher_tray.py)
+    # so the sidecar bundle never carries it.
+    "pystray>=0.19",
 ]
 
 [project.scripts]

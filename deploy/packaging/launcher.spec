@@ -28,9 +28,9 @@ a = Analysis(
     pathex=[root, os.path.join(root, ".venv", "Lib", "site-packages")],
     binaries=[],
     datas=[],
-    # The tray (S4) is the only optional import; keep the failure visible
-    # rather than silently shipping a console-less app with no way out.
-    hiddenimports=["pystray", "PIL.Image", "PIL.ImageDraw"],
+    # The tray is the only optional import; pystray needs Pillow for the icon
+    # and its win32 backend for the shell icon.
+    hiddenimports=["pystray", "pystray._win32", "PIL.Image", "PIL.ImageDraw"],
     hookspath=[],
     excludes=["tkinter", "matplotlib", "pandas", "PyQt5", "PySide6", "numpy", "cv2", "scipy", "onnxruntime"],
     noarchive=False,

@@ -100,6 +100,7 @@ pillow==12.3.0
     # via
     #   alas
     #   imageio
+    #   pystray
     #   uiautomator2
 progress==1.6.1
     # via uiautomator2
@@ -141,7 +142,9 @@ pyobjc-framework-cocoa==12.2.2 ; sys_platform == 'darwin'
     #   pyobjc-framework-webkit
     #   pywebview
 pyobjc-framework-quartz==12.2.2 ; sys_platform == 'darwin'
-    # via pywebview
+    # via
+    #   pystray
+    #   pywebview
 pyobjc-framework-security==12.2.2 ; sys_platform == 'darwin'
     # via pywebview
 pyobjc-framework-uniformtypeidentifiers==12.2.2 ; sys_platform == 'darwin'
@@ -152,6 +155,10 @@ pyparsing==3.3.2
     # via packaging
 pypresence==4.2.1
     # via alas
+pystray==0.19.5
+    # via alas
+python-xlib==0.33 ; sys_platform == 'linux'
+    # via pystray
 pythonnet==3.1.0 ; sys_platform == 'win32'
     # via pywebview
 pywebview==6.2.1
@@ -183,6 +190,8 @@ shellingham==1.5.4
 six==1.17.0
     # via
     #   adbutils
+    #   pystray
+    #   python-xlib
     #   uiautomator2
 starlette==1.6.0
     # via
