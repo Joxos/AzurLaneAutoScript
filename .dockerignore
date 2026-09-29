@@ -1,0 +1,26 @@
+# Build context for the docker image (deploy/docker/Dockerfile).
+# The context is the repository root, so every pattern below is repo-relative.
+
+deploy/docker/Docker-run.sh
+deploy/docker/requirements_generator.py
+
+# The SPA is built inside the image (node stage); a host build or a stale dist
+# must not leak into the context and shadow it.
+webapp/node_modules/
+webapp/dist/
+
+# Local state that would shadow the image's copies. The deploy templates stay:
+# the app seeds config/deploy.yaml from deploy.template.yaml on first run.
+log/
+config/*.json
+config/*.yaml
+!config/deploy.*.yaml
+
+# Build artifacts, local scratch and VCS noise.
+build/
+dist/
+.git/
+.venv/
+.qoder/
+.rivet/
+docs/

@@ -3,12 +3,17 @@ services:
     ALAS:
         network_mode: host
         volumes:
+            # The image already contains the code and the built SPA; the bind
+            # mount is only for live-editing a checkout (log/ and config/ must
+            # stay on the host to survive a container rebuild).
             - '.:/app/AzurLaneAutoScript:rw'
             # - '../MAA:/app/MAA:rw'
             - '/etc/localtime:/etc/localtime:ro'
         container_name: 'alas'
         image: 'alas'
         build:
-            context: ./deploy/docker/
-            dockerfile: ./Dockerfile
-            # dockerfile: ./Dockerfile.cn
+            # Context is the repository root: the Dockerfile copies webapp/ and
+            # the python tree, and the .dockerignore next to it filters them.
+            context: .
+            dockerfile: deploy/docker/Dockerfile
+            # dockerfile: deploy/docker/Dockerfile.cn

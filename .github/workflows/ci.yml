@@ -80,3 +80,9 @@ jobs:
           # Upstream writes the per-server dict form everywhere; this restores
           # our collapsed form (semantics identical, checked above).
           uv run python dev_tools/dedup_assets.py --check
+
+      # The image is only built on release (no docker on the agents), so the
+      # packaging is checked statically: COPY sources exist and are not
+      # excluded by .dockerignore, and the compose context is the repo root.
+      - name: Docker packaging
+        run: uv run python dev_tools/verify_docker_packaging.py

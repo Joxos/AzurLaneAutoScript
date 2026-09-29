@@ -1,6 +1,20 @@
-# docker build -t hgjazhgj/alas:latest .
-# docker run -v ${PWD}:/app/AzurLaneAutoScript -p 22267:22267 --name alas -it --rm hgjazhgj/alas
+# Alas docker image, mainland-China mirrors (npm + apt + pypi).
+#
+#   docker build -f deploy/docker/Dockerfile.cn -t alas:latest .
+#   docker run -v ${PWD}:/app/AzurLaneAutoScript -p 22267:22267 --name alas -it --rm alas
 
+# ---------- stage 1: frontend (npm mirror) ----------
+FROM node:24-bookworm-slim AS webapp
+
+WORKDIR /app/webapp
+ENV COREPACK_NPM_REGISTRY=https://registry.npmmirror.com
+COPY webapp/package.json webapp/pnpm-lock.yaml ./
+RUN corepack enable && pnpm config set registry https://registry.npmmirror.com \
+ && pnpm install --frozen-lockfile
+COPY webapp/ ./
+RUN pnpm build
+
+# ---------- stage 2: runtime (apt + pypi mirrors) ----------
 FROM python:3.13-slim-bookworm
 
 WORKDIR /app/AzurLaneAutoScript
@@ -29,4 +43,8 @@ deb-src https://mirrors.aliyun.com/debian/ bookworm-updates main non-free contri
  && rm /tmp/requirements.txt \
  && rm -r ~/.cache/pip
 
-CMD python -m module.cli run web
+COPY . /app/AzurLaneAutoScript
+COPY --from=webapp /app/webapp/dist /app/AzurLaneAutoScript/webapp/dist
+
+EXPOSE 22267
+CMD ["python", "-m", "module.cli", "run", "web", "--no-open", "--host", "0.0.0.0"]
