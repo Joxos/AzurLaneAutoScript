@@ -1,6 +1,7 @@
 from module.awaken.assets import *  # noqa: F403  (data-bundle star import)
 from module.base.timer import Timer
 from module.exception import ScriptError
+from module.flow.runtime import run_flow
 from module.logger import logger
 from module.ocr.ocr import Digit
 from module.retire.dock import DOCK_EMPTY, Dock
@@ -92,21 +93,64 @@ class Awaken(Dock):
     def is_in_awaken(self):
         return SHIP_LEVEL_CHECK.match_luma(self.device.image, similarity=0.7)
 
-    def awaken_popup_close(self, skip_first_screenshot=True):
+    def _awaken_popup_close_flow(
+        self,
+        *,
+        cancel=AWAKEN_CANCEL,
+        finish=AWAKEN_FINISH,
+        level_check=SHIP_LEVEL_CHECK,
+    ) -> dict:
+        """awaken_popup_close as flow data (B1 sample, proved by
+        tests/test_flow_awaken.py against the pre-migration loop).
+
+        The symbols are parameters so the equivalence test can drive the same
+        flow with stand-ins whose matchers read the recorded scenario; the
+        defaults are the real assets.
+        """
+
+        def in_view(ctx, args=None) -> bool:
+            return bool(level_check.match_luma(ctx.owner.device.image, similarity=0.7))
+
+        def finish_handled(ctx, args=None) -> bool:
+            # original `if self.handle_awaken_finish(): continue`
+            return bool(ctx.owner.appear_then_click(finish, offset=(20, 20), interval=1))
+
+        def click_cancel(ctx, args=None) -> bool:
+            return bool(ctx.owner.appear_then_click(cancel, offset=(20, 20), interval=3))
+
+        return {
+            "name": "awaken_popup_close",
+            "entry": "wait",
+            "states": {
+                "wait": {
+                    # original: `if self.is_in_awaken(): break`
+                    "exit": {"check": {"custom": in_view}, "on_success": {"exit": True}},
+                    "rules": [
+                        # original: appear_then_click(AWAKEN_CANCEL, interval=3)
+                        # -> continue. This is `call_if` and not check+action:
+                        # appear_then_click detects and acts in one call, and a
+                        # separate check would consume the interval timer before
+                        # the action runs (the double-run harness caught exactly
+                        # that - the click never fired).
+                        {"name": "cancel", "action": {"call_if": click_cancel}},
+                        # original: handle_awaken_finish() -> continue
+                        {"name": "finish", "action": {"call_if": finish_handled}},
+                    ],
+                    # the original had no timeout; the engine's ceiling keeps a
+                    # lost page from spinning forever
+                    "on_timeout": {"seconds": 60, "mode": "warn"},
+                }
+            },
+        }
+
+    def awaken_popup_close(self, skip_first_screenshot=True, **_symbols):
         logger.info("Awaken popup close")
         self.interval_clear(AWAKEN_CANCEL)
-        while 1:
-            if skip_first_screenshot:
-                skip_first_screenshot = False
-            else:
-                self.device.screenshot()
-
-            if self.is_in_awaken():
-                break
-            if self.appear_then_click(AWAKEN_CANCEL, offset=(20, 20), interval=3):
-                continue
-            if self.handle_awaken_finish():
-                continue
+        run_flow(
+            self._awaken_popup_close_flow(**_symbols),
+            owner=self,
+            skip_first=skip_first_screenshot,
+        )
 
     def awaken_once(self, use_array=False, skip_first_screenshot=True):
         """

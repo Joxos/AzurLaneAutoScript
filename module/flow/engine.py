@@ -500,6 +500,12 @@ class FlowEngine:
             return ctx.owner.appear(spec["button"], **_only(spec, "offset", "interval", "similarity", "threshold"))
         if "template" in spec:
             return self._check_template(spec, ctx)
+        if "luma" in spec:
+            # Luminance-only template match on the whole screenshot - used by
+            # pages whose background animation breaks a colour match
+            # (awaken's level check). `match_luma` owns its own defaults, so
+            # only what the spec spells out is passed.
+            return bool(spec["luma"].match_luma(ctx.owner.device.image, **_only(spec, "offset", "similarity")))
         if "color" in spec:
             return self._check_color(spec["color"], ctx)
         raise FlowSpecError(f"unknown check spec: {sorted(spec)}")

@@ -27,7 +27,7 @@ FlowGuard = Callable[["FlowCtx", dict[str, Any]], bool]
 # ---------------------------------------------------------------------------
 
 CHECK_KEYS = frozenset(
-    {"always", "not", "and", "or", "custom", "capability", "page", "button", "template", "color"}
+    {"always", "not", "and", "or", "custom", "capability", "page", "button", "template", "luma", "color"}
 )
 # Forwarded to the owner's method, never dispatched on.
 CHECK_PAYLOAD_KEYS = frozenset({"args", "offset", "interval", "similarity", "threshold", "crop", "pre"})
