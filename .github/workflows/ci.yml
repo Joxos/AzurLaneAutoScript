@@ -100,3 +100,8 @@ jobs:
       # excluded by .dockerignore, and the compose context is the repo root.
       - name: Docker packaging
         run: uv run python dev_tools/verify_docker_packaging.py
+
+      # Every row of docs/requirements-matrix.md must still point at a file
+      # that exists, on both ends (the artefact and the gate that proves it).
+      - name: Requirements matrix
+        run: uv run python dev_tools/verify_requirements.py

@@ -4,23 +4,181 @@
 
 仓库地址：https://github.com/Joxos/AzurLaneAutoScript
 
-## 改动聚焦
+---
 
-- **前端从零重写**：`webapp/` 用 Svelte 5 + Vite + UnoCSS 从零重写，与原版样式视觉等观；语义化设计令牌（design tokens），hover/active 态由 `color-mix` 派生，主题通过 `data-theme` 切换。
-- **桌面应用**：`alas run desktop`（pywebview + 系统 WebView2 窗口），统一 CLI 入口管理 headless/web/desktop 三 flavor；Tauri 2 桌面壳已于 2026-09 移除（git 历史可恢复），NSIS 安装包为 P0.5 目标。
-- **WebUI 修复**：日志盒 CJK 等宽对齐、SSE 连接时预推送已有日志、运行中任务时间跨页面保留、日志按级别渲染等。
-- **代码清理**：全量死代码审计与清理，并恢复被误删的运行时属性（`finish_time`、`is_accessible_2`、`is_nearby`、`may_mumu12_family` 等）。
-- **工程化**：uv 依赖锁定、ruff/pyright 配置、PyInstaller 后端打包（`deploy/packaging/alas_backend.spec`）与统一 CLI 入口（`module/cli`,桌面窗口 = pywebview,Tauri 壳已于 2026-09 归档）。
+# ⚠ 本 fork 自有改动（不属于上游，请勿混淆）
+
+> 这一节只描述**我们相对上游的差异**。上游自己的功能请看下文与上游仓库。
+> 与上游 `master` 的差异规模：**745 个文件 / +382,976 −44,925**（不含 `campaign/`，
+> 那部分是地图数据格式差异，见下表）。
+
+## 1. 功能矩阵：相对上游改了什么
+
+| 领域 | 上游 | 本 fork | 状态 |
+|---|---|---|---|
+| 前端 | `webapp/`（Electron + 13 个前端源文件，2026-09 新增，与我们无关） | `webapp/` **Svelte 5 + Vite + UnoCSS 从零重写**，语义化设计令牌，主题走 `data-theme`，后端 FastAPI 提供 REST+SSE | 完成 |
+| 桌面壳 | 自带 Electron 打包 | **PyInstaller 双 exe**：`Alas.exe`（启动器，GUI 子系统）+ `alas-backend.exe`（console 子系统）。Tauri 壳 2026-09 归档 | 完成 |
+| 系统托盘 | 有（Electron 提供） | **有**（pystray，随启动器分发），关窗口 = 隐藏到托盘，只有 Quit 才停机 | 完成，真机待验 |
+| 安装包 | 自己的发布流程 | **自写 NSIS**（免管理员、装到 `%LOCALAPPDATA%`、升级前自动退旧版、卸载不动用户数据） | 完成，真机待验 |
+| 应用内更新 | 无 | **有**：拉 release → 下载 setup.exe → 停任务 → 分离启动安装器 `/S /R` → 自动重启 | 完成，真机待验 |
+| 入口 | 多脚本 | **单一 `alas` 命令**：`alas run headless/web/desktop`、`alas build frontend/sidecar/launcher/installer`、`alas doctor`、`alas version` | 完成 |
+| 业务逻辑表达 | 散落各模块的 `while 1:` | **`module/flow/` 声明式执行核**（flow 数据 + 共享引擎 + 双跑等价门） | 进行中（详见 §4） |
+| 地图数据 | `campaign/*.py` | **YAML/JSON + legacy snapshot**（1366 yaml / 1393 json / 667 py / 134 份快照），运行时天然广播 | 完成 |
+| 任务清单 | 各任务自己 `run()` | `module/tasks/registry.py` 声明式任务表（含 family），调度与配置生成共用一份事实源 | 完成 |
+| 设备层 | 全量 | 保留全部；**主动移除** uiautomator2 XPath 登录旧路径（handler 层） | 完成 |
+| 工程门 | 无 | ruff 全树 0、pyright（运行时状态相关层）0、pytest 1459、导入冒烟 445/445、配置零漂移、地图数据 1366/1366、资产语义 1343/441、资产去冗余格式、**日志格对齐（真实浏览器逐行量）**、**识别参数 vs 上游 549 站点**、docker 打包静态检查 | 完成 |
+| Docker | 官方镜像 | 多阶段构建，**镜像内含前端**（此前只发 API，干净检出会得到一个"看起来坏了"的镜像） | 完成，真机待验 |
+
+### 我们修掉的、上游还没有的问题
+
+| 问题 | 现象 | 根因 | 门 |
+|---|---|---|---|
+| 日志报错框右侧对不齐 | 满屏报错时 rich 框右边缘整片漂移（实测最差 −17.2px） | 浏览器按字体自然宽度渲染，后端按 rich 的格宽排版：CJK 实际 1.871 格（rich 按 2 格）、`✔✖⚠` 实际 1.1–2.5 格（rich 按 1 格） | `dev_tools/verify_log_align.mjs`（headless Edge 逐行量，修复后最差 0.03px） |
+| 每条日志后多一个空行 | 日志看起来"行距 double" | rich capture 输出每行以 `ESC[0m\r` 结尾，`render_log` 只 `rstrip("\n")`，`\r` 被浏览器归一化成换行 | 同上门 + `helpers.py` 改 `rstrip("\r\n")` |
+| 识别参数静默漂移 | 上游把 `image_color_count` 的 threshold 从"相似度下限"改成"容差"后，**所有没显式写阈值的颜色检查几乎恒真** | 调用点散落各处，无人比對上游 | `dev_tools/verify_thresholds.py`（AST 逐站点比对，549 站点） |
+| 资产格式被上游覆盖 | 每次取上游 `assets.py` 就丢掉我们的四服同值折叠 | 上游统一写字典形式 | `dev_tools/dedup_assets.py`（AST 重写 + 语义等价门，CI 检查） |
+| 升级链路从未成立 | CI 发 zip，updater 只认 `*setup*.exe` → 应用内更新必然失败 | 两条路径各自演进 | 见 §2 |
+
+## 2. 更新流程与逻辑（本 fork 自有）
+
+```
+应用内（WebUI 主页 → 更新器）
+  refresh ──► GET api.github.com/repos/Joxos/…/releases?per_page=30
+           （或 ALAS_UPDATE_MIRROR 指定的镜像前缀，只影响下载源）
+  install ──► 下载 <tag>_x64-setup.exe（进度回传前端）
+           ──► 停所有运行中的任务（ProcessManager，等 ≤30s）
+           ──► **分离启动**安装器 /S /R（DETACHED_PROCESS）
+                 · 安装器要求 Alas.exe --quit 退掉旧版
+                 · 替换整个程序目录（数据目录不在其中）
+                 · /R 安装完自动拉起新版本
+           ──► 本进程随后被安装器终止
+
+离线/手动
+  删掉旧 tag 重打（tag 不可重用）→ CI 重新构建
+  或本地：alas build frontend → sidecar → launcher → installer
+```
+
+要点与边界：
+
+- **数据目录分离**：程序目录 `%LOCALAPPDATA%\Programs\Alas`（可整体替换），
+  用户数据 `%LOCALAPPDATA%\Alas`（`config/ log/ assets/ bin/`，更新不动）。
+  启动器设置 `ALAS_DATA_DIR` 并以其为 CWD；frozen 后端在 `module/logger.py` 里
+  `chdir` 到该目录。
+- **为什么安装器必须分离启动**：它要替换正在运行的程序文件，必须活过后端进程；
+  代价是"安装成功"无法同步确认（应用会被自己重启）。
+- **崩溃可见**：控制台被隐藏，所以启动器把 sidecar 的 stderr 镜像到
+  `<数据目录>/log/backend.log`；启动器自身的一切动作记 `log/launcher.log`。
+- **未签名**：没有代码签名证书，SmartScreen 可能提示；不做自动更新校验。
+- 源码检出不支持应用内安装（会明确报错），开发者用 git 更新。
+
+## 3. 发布端（本 fork 自有）
+
+```
+git push origin master
+git tag v2026.10.01 && git push origin v2026.10.01
+        │
+        └─ CI (.github/workflows/release.yml, windows-latest)
+             uv sync --frozen → pnpm build（webapp/dist）
+             → dev_tools/gen_app_icon.py（NSIS 只认 .ico）
+             → pyinstaller alas_backend.spec（console）→ version.txt = tag
+             → pyinstaller launcher.spec（GUI，带托盘）
+             → **冒烟两个 exe**（sidecar version + 启动器存在）
+             → makensis alas_installer.nsi  → Alas_<tag>_x64-setup.exe
+             → softprops/action-gh-release 上传
+```
+
+- 版本号唯一事实源 = **tag**（应用内"当前版本"读 `version.txt`）。
+- 产物结构：`%LOCALAPPDATA%\Programs\Alas\{Alas\Alas.exe, alas-backend\…}`。
+- 免管理员安装（`RequestExecutionLevel user`），所以 `/S` 静默升级不会被 UAC 挡。
+- nsi 缺失时回退 portable zip（此时应用内更新会明确报错，不静默失败）。
+- 日常质量门：`.github/workflows/ci.yml`（ruff 全树 / pyright / pytest / 前端 vitest /
+  日志格对齐 / 识别参数比对 / 等价门 / docker 静态检查）。
+- **上游同步**是另一条线：`docs/upstream-sync.md`（每周一次，`git merge-tree` 先干跑数冲突）。
+
+## 4. Flow：业务逻辑数据化（迁移前 / 迁移后）
+
+同一个循环，两种写法。左边是上游风格（优先级藏在缩进与 `continue` 里），右边是本 fork
+的 flow 数据 + 共享执行核。
+
+**迁移前**（`module/awaken/awaken.py`）：
+
+```python
+def awaken_popup_close(self, skip_first_screenshot=True):
+    self.interval_clear(AWAKEN_CANCEL)
+    while 1:
+        if skip_first_screenshot:
+            skip_first_screenshot = False
+        else:
+            self.device.screenshot()
+
+        if self.is_in_awaken():          # 退出条件
+            break
+        if self.appear_then_click(AWAKEN_CANCEL, offset=(20, 20), interval=3):
+            continue                       # ← 优先级顺序 = 代码顺序
+        if self.handle_awaken_finish():
+            continue
+```
+
+**迁移后**（同一文件，循环变成数据，规则顺序显式且带名字）：
+
+```python
+def _awaken_popup_close_flow(self, *, cancel=AWAKEN_CANCEL, finish=AWAKEN_FINISH,
+                             level_check=SHIP_LEVEL_CHECK) -> dict:
+    def in_view(ctx, args=None):     # 退出条件
+        return bool(level_check.match_luma(ctx.owner.device.image, similarity=0.7))
+    def finish_handled(ctx, args=None): ...   # call_if：检测与动作同一次调用
+    def click_cancel(ctx, args=None):   ...
+    return {
+        "name": "awaken_popup_close", "entry": "wait",
+        "states": {"wait": {
+            "exit": {"check": {"custom": in_view}, "on_success": {"exit": True}},
+            "rules": [
+                {"name": "cancel", "action": {"call_if": click_cancel}},   # 规则①
+                {"name": "finish", "action": {"call_if": finish_handled}},   # 规则②
+            ],
+            "on_timeout": {"seconds": 60, "mode": "warn"},
+        }},
+    }
+```
+
+得到什么：
+
+- **优先级顺序变成可读、可 diff、可校验的数据**（`validate_flow` 在加载时就检查
+  状态引用与 check/action/control 的合法键）。
+- **行为等价由门证明**：`dev_tools/flow_replay.py` 逐帧回放录制场景，比对两套实现的
+  设备调用序列（`tests/test_flow_awaken.py` 里保留着迁移前的循环原文作为参照）。
+  这道门已经抓到过一次真 bug：把 `appear_then_click(X, interval=3)` 拆成
+  `check`+`action` 会同帧消耗两次 interval 计时器 → 点击永不触发。
+- **默认值不复制**：check/action 只传 spec 显式写出的键，其余用 `module/base/base.py`
+  的签名默认值（引擎曾写死 `threshold=221`，上游改语义后全量静默恒真——见 §1）。
+- **门自己必须能被证伪**：`tests/test_flow_replay.py` 验证 harness 对"多一次点击 /
+  换顺序 / 差一帧 / 丢 interval / 循环不收敛"都会报差异。
+
+**进度**：已 flow 化 `handler`（登录/自动搜索/strategy/ambush/enemy_searching/
+info_handler）、`ui`（navbar/setting/switch/scroll/ui）、`freebies`（4 个）、
+`awaken.popup_close`。剩余 `while 1:` 共 272 处，其中约 45 处（meowfficer /
+event_hospital / retire）是下一批的合理目标；其余多为一次性顺序代码或设备层，
+按设计**不**应 flow 化。明细见 `docs/flow-migration-guide.md`。
+
+## 5. 文档
+
+- `docs/plan-2026-09-todo.md` —— 五项待办的完成计划与执行记录
+- `docs/flow-engine-review.md` —— Flow 引擎并入前的评审（含 2 个 P0）
+- `docs/flow-migration-guide.md` —— 迁移步骤、坑、剩余队列
+- `docs/real-machine-checklist.md` —— 真机实测清单（每步的失败表现与取证位置）
+- `docs/upstream-sync.md` —— 上游同步 SOP 与冲突策略
+- `deploy/packaging/README.md` —— 打包/安装/发布全流程
 
 ## 开发
 
 - 后端环境：`uv sync`（Python ≥ 3.12,含 pywebview）
-- 统一入口：`alas run headless|web|desktop`、`alas build frontend|sidecar|installer`、`alas doctor`（唯一入口;`alas.py`/`gui.py` 旧脚本已移除,python 侧请用 `python -m module.cli`）
-- 桌面窗口：`alas run desktop`（pywebview;WebView2 缺失时自动回退浏览器）
+- 统一入口：`alas run headless|web|desktop`、`alas build frontend|sidecar|launcher|installer`、`alas doctor`（唯一入口;`alas.py`/`gui.py` 旧脚本已移除,python 侧请用 `python -m module.cli`）
+- 桌面窗口：`alas run desktop`（pywebview;WebView2 缺失时自动回退浏览器）；`--tray` 让关窗口=隐藏到托盘
 - 前端：`cd webapp && pnpm install && pnpm dev`（vite 开发服务器把 API/SSE 代理到 `127.0.0.1:22267` 的后端）
 - 测试：`pnpm test`（前端 vitest）；后端 `uv run pytest`
 
 ---
+
 
 **| [English](README_en.md) | 简体中文 | [日本語](README_jp.md) |**
 
