@@ -5,9 +5,12 @@ interface Props {
   lines: string[];
   class?: string;
   keepBottom?: boolean;
+  /** Soft-wrap long lines (narrow panes). Off by default: rich lays the log
+      out as a fixed-width grid and wrapping breaks its right border. */
+  wrap?: boolean;
 }
 
-let { lines, class: cls = "", keepBottom = true }: Props = $props();
+let { lines, class: cls = "", keepBottom = true, wrap = false }: Props = $props();
 let preEl = $state<HTMLElement | null>(null);
 let codeEl = $state<HTMLElement | null>(null);
 
@@ -40,7 +43,9 @@ function rebuild() {
   node.textContent = "";
   renderedCount = 0;
   if (lines.length > 0) {
-    node.insertAdjacentHTML("beforeend", ansiToHtml(`${lines.join("\n")}\n`));
+    // `preEl` is the measurement host: the cell grid depends on the font it
+    // actually resolved, not on a detached node.
+    node.insertAdjacentHTML("beforeend", ansiToHtml(`${lines.join("\n")}\n`, preEl));
     renderedCount = lines.length;
   }
 }
@@ -57,7 +62,7 @@ $effect(() => {
     // Buffer spliced in place.
     rebuild();
   } else if (lines.length > renderedCount) {
-    node.insertAdjacentHTML("beforeend", ansiToHtml(`${lines.slice(renderedCount).join("\n")}\n`));
+    node.insertAdjacentHTML("beforeend", ansiToHtml(`${lines.slice(renderedCount).join("\n")}\n`, pre));
     renderedCount = lines.length;
   }
   scheduleScroll();
@@ -69,4 +74,4 @@ $effect(() => {
 });
 </script>
 
-<pre class={cls} bind:this={preEl}><code bind:this={codeEl}></code></pre>
+<pre class={`alas-log ${wrap ? "alas-log-wrap " : ""}${cls}`} bind:this={preEl}><code bind:this={codeEl}></code></pre>

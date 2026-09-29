@@ -13,7 +13,16 @@
  * The previous mapping used var(--bs-primary) etc., but the bundled
  * Bootstrap themes are pre-CSS-variable versions that never define those
  * properties, so level/time colors silently resolved to nothing.
+ *
+ * Order matters: ANSI is parsed into styled segments first, then each
+ * segment's text is escaped and pinned to the cell grid (see lib/cells.ts).
+ * Pinning before parsing used to wrap characters in a single box that could
+ * straddle a colour boundary, and only for lines containing box-drawing
+ * characters, which left plain error lines with Chinese text misaligned.
  */
+
+import { escapeHtml, learnCells, pinCells, setMeasureHost } from "./cells";
+
 const SGR_FG: Record<string, string> = {
   "30": "var(--ansi-black, #000000)",
   "31": "var(--ansi-red, #cd3131)",
@@ -44,66 +53,64 @@ const SGR_BG: Record<string, string> = {
   "47": "var(--ansi-white, #e5e5e5)",
 };
 
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function stylesFor(codes: string[]): string[] {
+  const styles: string[] = [];
+  for (const code of codes) {
+    if (code === "0" || code === "") continue;
+    if (code === "1") styles.push("font-weight:700");
+    else if (code === "3") styles.push("font-style:italic");
+    else if (code === "4") styles.push("text-decoration:underline");
+    else if (SGR_FG[code]) styles.push(`color:${SGR_FG[code]}`);
+    else if (SGR_BG[code]) styles.push(`background:${SGR_BG[code]}`);
+  }
+  return styles;
 }
+
+const SGR_RE = /\x1b\[([0-9;]*)m/g;
 
 /**
- * Wide characters (CJK ideographs, fullwidth forms, ...) must occupy exactly
- * two monospace cells for the rich traceback boxes to stay aligned. The
- * browser's CJK font fallback renders them at ~1em while two mono cells are
- * ~1.1em, which drifts the box borders by ~1px per character. Wrapping each
- * wide char in a fixed-width span (2ch of the log font) pins them to two
- * cells regardless of which font renders them.
- *
- * Pinning is restricted to lines that actually contain box-drawing
- * characters (tracebacks, tables): pinning every CJK char of every line
- * created tens of thousands of DOM spans for an 800-line buffer and froze
- * the page during high-rate log streaming. Regular log lines need no
- * alignment and stay span-free.
+ * @param host Element the log is rendered into. Passing it enables the
+ *   measurement pass that decides which characters need pinning - the answer
+ *   depends on the font actually resolved there, so it must be the log
+ *   element itself (the one carrying `.alas-log`), not a detached node.
  */
-const CJK_RE =
-  /([\u1100-\u115f\u2e80-\u303e\u3041-\u33ff\u3400-\u4dbf\u4e00-\u9fff\ua000-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6])/g;
+export function ansiToHtml(text: string, host: HTMLElement | null = null): string {
+  setMeasureHost(host);
+  // rich terminates captured lines with CRLF. A CR left in the string becomes
+  // a line break when the browser parses the HTML, which both shifts the grid
+  // and adds a phantom blank line after every entry; the backend strips it
+  // (render_log), and the frontend must not depend on that.
+  let input = text;
+  if (input.indexOf("\r") >= 0) input = input.replace(/\r\n?/g, "\n");
+  if (input.endsWith("\n")) input = input.replace(/\n+$/, "");
+  // One measurement pass for the characters this batch introduces, so the
+  // first render is already grid-correct (no flash of misaligned boxes).
+  learnCells(input);
 
-const BOX_LINE_RE = /[│└├─┐┌┘┃║═┬┴┤┼]/;
-
-function pinWideChars(text: string): string {
-  return text
-    .split("\n")
-    .map((line) => (BOX_LINE_RE.test(line) ? line.replace(CJK_RE, '<span class="cjk">$1</span>') : line))
-    .join("\n");
-}
-
-export function ansiToHtml(text: string): string {
-  const escaped = pinWideChars(escapeHtml(text));
   let out = "";
-  let pendingClose = false;
-  const re = /\x1b\[([0-9;]*)m/g;
   let last = 0;
+  let pendingClose = false;
   let match: RegExpExecArray | null;
-  while ((match = re.exec(escaped))) {
-    out += escaped.slice(last, match.index);
+
+  SGR_RE.lastIndex = 0;
+  while ((match = SGR_RE.exec(input))) {
+    if (match.index > last) {
+      out += pinCells(escapeHtml(input.slice(last, match.index)));
+    }
     if (pendingClose) {
       out += "</span>";
       pendingClose = false;
     }
-    const codes = match[1] ? match[1].split(";") : ["0"];
-    const styles: string[] = [];
-    for (const code of codes) {
-      if (code === "0" || code === "") continue;
-      if (code === "1") styles.push("font-weight:700");
-      else if (code === "3") styles.push("font-style:italic");
-      else if (code === "4") styles.push("text-decoration:underline");
-      else if (SGR_FG[code]) styles.push(`color:${SGR_FG[code]}`);
-      else if (SGR_BG[code]) styles.push(`background:${SGR_BG[code]}`);
-    }
+    const styles = stylesFor(match[1] ? match[1].split(";") : ["0"]);
     if (styles.length) {
       out += `<span style="${styles.join(";")}">`;
       pendingClose = true;
     }
-    last = re.lastIndex;
+    last = match.index + match[0].length;
   }
-  out += escaped.slice(last);
+  if (last < input.length) {
+    out += pinCells(escapeHtml(input.slice(last)));
+  }
   if (pendingClose) out += "</span>";
   return out;
 }

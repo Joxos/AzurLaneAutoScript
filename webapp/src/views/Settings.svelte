@@ -149,9 +149,10 @@ $effect(() => {
         {/each}
 
         <LogView
-          class="col-[2] my-[0.3rem] min-h-60 max-h-[40vh] overflow-y-auto rounded bg-surface-log p-2 text-xs whitespace-pre-wrap [color:var(--log-fg)]"
+          class="col-[2] my-[0.3rem] min-h-60 max-h-[40vh] overflow-y-auto rounded bg-surface-log p-2 [color:var(--log-fg)]"
           lines={logs[activeInstance] ?? EMPTY_LOGS}
           keepBottom={toolKeepBottom}
+          wrap
         />
       </div>
     {:else}

@@ -200,7 +200,7 @@ $effect(() => {
         </div>
       </div>
       <LogView
-        class="panel m-1.25 min-h-0 grow overflow-y-auto p-2.5 text-[0.85rem] leading-[1.2] whitespace-pre [color:inherit] [font-family:var(--font-mono)]"
+        class="panel m-1.25 min-h-0 grow overflow-y-auto p-2.5 [color:inherit]"
         lines={logs[activeInstance] ?? EMPTY_LOGS}
         {keepBottom}
       />

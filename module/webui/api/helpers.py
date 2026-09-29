@@ -57,7 +57,11 @@ def render_log(renderable) -> str:
         console = _get_render_console()
         with console.capture() as capture:
             console.print(renderable)
-        return capture.get().rstrip("\n")
+        # A captured terminal Console terminates every line with ESC[0m + CR
+        # (rich writes CRLF). A bare rstrip("\n") leaves the CR, and the
+        # browser's HTML parser normalizes it to a line break - so every log
+        # entry rendered with a trailing empty line. Strip both.
+        return capture.get().rstrip("\r\n")
     except Exception:
         return str(renderable)
 

@@ -94,12 +94,37 @@ select option {
   }
 }
 
-/* Log-view wide characters: pin CJK/fullwidth glyphs to exactly two
-   monospace cells so ANSI/rich box borders stay column-aligned even when
-   the browser falls back to a CJK font that is narrower than 2x the mono
-   advance (see src/lib/ansi.ts). */
-.cjk {
+/* Log view typography. Owned by LogView.svelte (both call sites share it) so
+   the cell grid the backend laid out with rich is the same everywhere; the
+   settings pane used to render the same component in the UI sans font, which
+   put every rich box border hundreds of pixels off. */
+.alas-log {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.2;
+  white-space: pre;
+  /* Terminal semantics: no ligatures (they merge glyphs and shift the grid),
+     8-space tabs like rich's console. */
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
+  tab-size: 8;
+}
+
+/* Opt-in soft wrapping for narrow panes. Cell pinning still applies, so a
+   wrapped line is readable even though it no longer ends on a border. */
+.alas-log-wrap {
+  white-space: pre-wrap;
+}
+
+/* Characters whose natural advance disagrees with the cell count rich
+   assumed are forced into a box of exactly that width (see lib/cells.ts).
+   `width` is set inline (in ch, i.e. one cell per unit); the box must not
+   change the row height, and a glyph wider than its cell overhangs the
+   neighbours exactly like a terminal would. */
+.cell-pin {
   display: inline-block;
-  width: 2ch;
+  line-height: inherit;
+  vertical-align: top;
   text-align: center;
+  overflow: visible;
 }
