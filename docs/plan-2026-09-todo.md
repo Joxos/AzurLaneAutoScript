@@ -30,7 +30,11 @@
 
 **执行记录**
 
-- 2026-09-29：`02d06b7c0` 线程池僵尸 worker 修复入库（原本长期挂在工作区）；`17513b956` 日志格对齐修复 + 等价门；`a2075a543` CI 断点修复（assets 基线入库并重录、`feature/*` 触发、补前端与日志格门）。S0 剩余：远端清理、ruff 182 项归零、基线存档。
+- 2026-09-29：`02d06b7c0` 线程池僵尸 worker 修复入库（原本长期挂在工作区）；`17513b956` 日志格对齐修复 + 等价门；`a2075a543` CI 断点修复（assets 基线入库并重录、`feature/*` 触发、补前端与日志格门）。
+- 2026-09-29：`088113c99` 全树 ruff 182 → 0（顺带修好 smoke 脚本里 `module.` 这个假模块名——CI 的导入门此前一直是红的）。
+- 2026-09-29：`e7c4e81ee` 上游 SOP + `upstream` 远端（push 已禁用）；`32a31e9c5` 首次全量合并上游 51 个提交（66 处冲突：campaign 取上游删除、deploy 取本地、handler 登录层保留我方删掉的 u2 旧路径并移植上游阈值改动、其余取上游后重加我方约定）；顺带把上游新增的 `color_mask` 移植进 `module/core/color.py`、`dev_tools/dedup_assets.py` 恢复资产去冗余格式（语义等价门）。
+- 2026-09-29：`7db3176ea` Flow 引擎评审（`docs/flow-engine-review.md`）；`bb930b045` 引擎并入并按评审改造：不再写死设备默认值（修掉上游改阈值语义后的静默恒真）、`validate_flow` 校验载荷、`_RunState` 拆开 100 行闭包、`run`/`run_group` 共用一个规则求值器、探针全部丢弃。
+- 2026-09-29：`b8db30243` 发布链：启动器（GUI 无黑窗 + 数据目录隔离 + stderr 落盘 + 单实例）、NSIS 安装器、release.yml 打通 setup.exe 并冒烟两个 exe、updater 去 Tauri 痕迹改分离启动；`fc8a333cb` docker 多阶段构建把前端打进镜像 + 静态门；`3fb687593` 托盘（pystray 菜单 / 真退出 / 端口从 deploy.yaml 读）随启动器回归。
 
 ---
 
