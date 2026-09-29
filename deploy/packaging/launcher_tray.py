@@ -85,17 +85,22 @@ def icon_image(size: int = 64):
     return image
 
 
-def reveal(path: Path) -> None:
-    """Open a directory in the file manager (best effort)."""
+def reveal(path: Path) -> str | None:
+    """Open a directory in the file manager.
+
+    Returns None on success, or the reason it failed - the tray has no
+    console, so a silent failure here would look like a broken menu item.
+    """
     try:
         if os.name == "nt":  # pragma: no cover - windows path
-            os.startfile(str(path))
+            os.startfile(str(path))  # a user action on our own data directory
         elif sys.platform == "darwin":  # pragma: no cover - macos path
             subprocess.Popen(["open", str(path)])
         else:  # pragma: no cover - linux path
             subprocess.Popen(["xdg-open", str(path)])
-    except Exception:
-        pass
+    except Exception as e:
+        return f"{type(e).__name__}: {e}"
+    return None
 
 
 class TrayController:
@@ -187,11 +192,19 @@ class TrayController:
 
     def open_logs(self, *_args) -> None:
         log_dir = self.data / "log"
-        log_dir.mkdir(parents=True, exist_ok=True)
-        reveal(log_dir)
+        try:
+            log_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            self._note(f"cannot create the log folder: {e}")
+            return
+        failure = reveal(log_dir)
+        if failure:
+            self._note(f"cannot open the log folder ({failure})")
 
     def open_data_dir(self, *_args) -> None:
-        reveal(self.data)
+        failure = reveal(self.data)
+        if failure:
+            self._note(f"cannot open the data folder ({failure})")
 
     def update_tooltip(self, icon=None, item=None) -> None:
         state = "running" if self.running() else "backend stopped"

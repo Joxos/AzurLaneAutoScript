@@ -142,18 +142,40 @@ def test_open_window_opens_the_backend_url(controller, monkeypatch):
 def test_open_logs_creates_and_reveals_the_log_dir(controller, monkeypatch, tmp_path):
     ctl, _ = controller
     revealed = []
-    monkeypatch.setattr(tray, "reveal", lambda path: revealed.append(path))
+    monkeypatch.setattr(tray, "reveal", lambda path: revealed.append(path) or None)
     ctl.open_logs()
     assert revealed == [ctl.data / "log"]
     assert (ctl.data / "log").is_dir()
 
 
+def test_open_logs_reports_a_failing_reveal(controller, monkeypatch):
+    """The tray has no console: a silent failure looks like a dead menu item."""
+    ctl, _ = controller
+
+    class FakeIcon:
+        title = ""
+
+    ctl.icon = FakeIcon()
+    monkeypatch.setattr(tray, "reveal", lambda path: "OSError: no file manager")
+    ctl.open_logs()
+    assert "no file manager" in ctl.icon.title
+
+
 def test_open_data_dir_reveals_the_data_directory(controller, monkeypatch):
     ctl, _ = controller
     revealed = []
-    monkeypatch.setattr(tray, "reveal", lambda path: revealed.append(path))
+    monkeypatch.setattr(tray, "reveal", lambda path: revealed.append(path) or None)
     ctl.open_data_dir()
     assert revealed == [ctl.data]
+
+
+def test_reveal_reports_instead_of_swallowing(monkeypatch, tmp_path):
+    def boom(*args, **kwargs):
+        raise OSError("no file manager")
+
+    monkeypatch.setattr(tray.os, "startfile", boom, raising=False)
+    monkeypatch.setattr(tray.subprocess, "Popen", boom)
+    assert "OSError" in (tray.reveal(tmp_path) or "")
 
 
 def test_api_returns_none_when_the_backend_is_unreachable(controller, monkeypatch):

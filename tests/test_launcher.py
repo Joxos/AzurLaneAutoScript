@@ -95,7 +95,17 @@ def test_pid_file_roundtrip(tmp_path):
     assert launcher.read_pid(data) != 999999999
 
     launcher.pid_file(data).write_text("not-a-pid", encoding="utf-8")
-    assert launcher.read_pid(data) is None
+    assert launcher.read_pid(data) is not None, "a corrupt pid file must not read as 'nobody is running'"
+    assert "not a pid" in (data / "log" / "launcher.log").read_text(encoding="utf-8")
+
+
+def test_quit_running_reports_failure_when_it_cannot_identify_the_instance(tmp_path):
+    """With a corrupt pid file the launcher cannot stop the running copy, and
+    the installer needs to hear about it instead of proceeding blindly."""
+    data = tmp_path / "data"
+    data.mkdir()
+    launcher.pid_file(data).write_text("not-a-pid", encoding="utf-8")
+    assert launcher.quit_running(data, timeout=0.2) == 1
 
 
 def test_quit_running_is_a_noop_when_nothing_runs(tmp_path):

@@ -117,11 +117,26 @@ def pid_file(data: Path) -> Path:
 
 
 def read_pid(data: Path) -> int | None:
-    """PID of a running launcher, if the file is there and the process is alive."""
+    """PID of a running launcher, or None.
+
+    A pid file that exists but cannot be read is *not* "nobody is running":
+    believing that would let a second instance start on top of the first
+    (same port, same config files). It is logged and reported as running
+    (the sentinel -1 - which every caller only tests for None).
+    """
+    path = pid_file(data)
     try:
-        pid = int(pid_file(data).read_text(encoding="utf-8").strip())
-    except (OSError, ValueError):
+        raw = path.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
         return None
+    except OSError as e:
+        log_line(data, f"cannot read {path.name} ({e}); treating an instance as running")
+        return -1
+    try:
+        pid = int(raw)
+    except ValueError:
+        log_line(data, f"{path.name} holds {raw!r}, not a pid; treating an instance as running")
+        return -1
     if os.name == "nt":  # pragma: no cover - windows path, exercised on device
         import ctypes
 
